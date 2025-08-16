@@ -7,8 +7,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = (req.body || {}) as { apiKey?: string };
   const headerKey =
     typeof req.headers.authorization === "string"
-      ? req.headers.authorization.replace(/^Bearer\s+/i, "")
+      ? req.headers.authorization.replace(/^Bearer\s+/i, "").trim()
       : undefined;
+  // Client may send a key for local dev; production should rely on OPENAI_API_KEY.
   const apiKey = body.apiKey || headerKey || process.env.OPENAI_API_KEY;
   if (!apiKey) return res.status(400).json({ ok: false, error: "Missing apiKey" });
 

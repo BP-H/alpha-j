@@ -23,10 +23,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   };
   const headerKey =
     typeof req.headers.authorization === "string"
-      ? req.headers.authorization.replace(/^Bearer\s+/i, "")
-      : undefined;
-
-  const apiKey = body.apiKey || headerKey || process.env.OPENAI_API_KEY || "";
+      ? req.headers.authorization.replace(/^Bearer\s+/i, "").trim()
+      : "";
+  // For local dev the client may supply an OpenAI key; production should set OPENAI_API_KEY on the server.
+  const apiKey =
+    (headerKey || (typeof body.apiKey === "string" ? body.apiKey.trim() : "")) ||
+    (process.env.OPENAI_API_KEY || "");
 
   if (!apiKey) {
     return res.status(401).json({
