@@ -25,8 +25,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     typeof req.headers.authorization === "string"
       ? req.headers.authorization.replace(/^Bearer\s+/i, "")
       : undefined;
-
-  const apiKey = body.apiKey || headerKey || process.env.OPENAI_API_KEY || "";
+  const localKey = (() => {
+    try {
+      const raw =
+        typeof globalThis !== "undefined" &&
+        (globalThis as any).localStorage?.getItem("sn.keys.openai");
+      return raw ? JSON.parse(raw) : undefined;
+    } catch {
+      return undefined;
+    }
+  })();
+  const apiKey =
+    body.apiKey || headerKey || localKey || process.env.OPENAI_API_KEY || "";
 
   if (!apiKey) {
     return res.status(401).json({
