@@ -12,14 +12,18 @@ export default async function handler(req: Request): Promise<Response> {
       headers: corsHeaders,
     });
   }
-
-  let text: string | undefined;
+  let body: any;
   try {
-    const body = await req.json();
-    text = body?.text;
+    body = await req.json();
   } catch {
-    text = undefined;
+    body = {};
   }
+
+  const text: string | undefined = typeof body?.text === 'string' ? body.text : undefined;
+  const bodyKey: string | undefined = typeof body?.apiKey === 'string' ? body.apiKey : undefined;
+  const authHeader = req.headers.get('authorization') || '';
+  const headerKey = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
+  const apiKey = bodyKey || headerKey || process.env.OPENAI_API_KEY;
 
   if (!text) {
     return new Response(JSON.stringify({ error: 'Missing text' }), {
@@ -28,11 +32,18 @@ export default async function handler(req: Request): Promise<Response> {
     });
   }
 
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: 'Missing apiKey' }), {
+      status: 401,
+      headers: corsHeaders,
+    });
+  }
+
   try {
     const r = await fetch('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+        Authorization: `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
