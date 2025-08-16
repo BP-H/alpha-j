@@ -70,9 +70,13 @@ export default function Sidebar() {
 
   const [openaiKey, setOpenaiKey] = useLocal("sn.keys.openai", "");
   const [anthropicKey, setAnthropicKey] = useLocal("sn.keys.anthropic", "");
-  const [perplexityKey, setPerplexityKey] = useLocal("sn.keys.perplexity", "");
-  const [stabilityKey, setStabilityKey] = useLocal("sn.keys.stability", "");
-  const [elevenlabsKey, setElevenlabsKey] = useLocal("sn.keys.elevenlabs", "");
+  const [perplexityKey, setPerplexityKey] = useLocal(
+    "sn.keys.perplexity",
+    "",
+  );
+  const [openaiDraft, setOpenaiDraft] = useState(openaiKey);
+  const [anthropicDraft, setAnthropicDraft] = useState(anthropicKey);
+  const [perplexityDraft, setPerplexityDraft] = useState(perplexityKey);
   const [openaiModel, setOpenaiModel] = useLocal(
     "sn.model.openai",
     "gpt-4o-mini",
@@ -80,19 +84,56 @@ export default function Sidebar() {
   const [showKeys, setShowKeys] = useState<Record<string, boolean>>({});
   const toggleShow = (k: string) =>
     setShowKeys((s) => ({ ...s, [k]: !s[k] }));
-  const clearAll = () => {
-    Object.keys(localStorage)
-      .filter((k) => k.startsWith("sn."))
-      .forEach((k) => localStorage.removeItem(k));
-    location.reload();
-  };
 
   const keyFields = [
-    { id: "openai", label: "OpenAI", value: openaiKey, setter: setOpenaiKey },
-    { id: "anthropic", label: "Anthropic", value: anthropicKey, setter: setAnthropicKey },
-    { id: "perplexity", label: "Perplexity", value: perplexityKey, setter: setPerplexityKey },
-    { id: "stability", label: "Stability", value: stabilityKey, setter: setStabilityKey },
-    { id: "elevenlabs", label: "ElevenLabs", value: elevenlabsKey, setter: setElevenlabsKey },
+    {
+      id: "openai",
+      label: "OpenAI",
+      value: openaiDraft,
+      onChange: setOpenaiDraft,
+      onSave: () => setOpenaiKey(openaiDraft),
+      onClear: () => {
+        setOpenaiDraft("");
+        setOpenaiKey("");
+        if (typeof window !== "undefined") {
+          setTimeout(() => window.localStorage.removeItem("sn.keys.openai"), 0);
+        }
+      },
+    },
+    {
+      id: "anthropic",
+      label: "Anthropic",
+      value: anthropicDraft,
+      onChange: setAnthropicDraft,
+      onSave: () => setAnthropicKey(anthropicDraft),
+      onClear: () => {
+        setAnthropicDraft("");
+        setAnthropicKey("");
+        if (typeof window !== "undefined") {
+          setTimeout(
+            () => window.localStorage.removeItem("sn.keys.anthropic"),
+            0,
+          );
+        }
+      },
+    },
+    {
+      id: "perplexity",
+      label: "Perplexity",
+      value: perplexityDraft,
+      onChange: setPerplexityDraft,
+      onSave: () => setPerplexityKey(perplexityDraft),
+      onClear: () => {
+        setPerplexityDraft("");
+        setPerplexityKey("");
+        if (typeof window !== "undefined") {
+          setTimeout(
+            () => window.localStorage.removeItem("sn.keys.perplexity"),
+            0,
+          );
+        }
+      },
+    },
   ];
 
   const pages = [
@@ -290,33 +331,39 @@ export default function Sidebar() {
           <section className="card">
             <header>API Keys</header>
             <div className="keys">
-              {keyFields.map(({ id, label, value, setter }) => (
-                <div key={id} className="key-field">
-                  <label className="label" htmlFor={`key-${id}`}>
-                    {label}
-                  </label>
-                  <div className="key-input">
-                    <input
-                      id={`key-${id}`}
-                      className="input"
-                      type={showKeys[id] ? "text" : "password"}
-                      value={value}
-                      onChange={(e) => setter(e.target.value)}
-                    />
-                    <button
-                      className="key-toggle"
-                      onClick={() => toggleShow(id)}
-                      type="button"
-                    >
-                      {showKeys[id] ? "Hide" : "Show"}
-                    </button>
+              {keyFields.map(
+                ({ id, label, value, onChange, onSave, onClear }) => (
+                  <div key={id} className="key-field">
+                    <label className="label" htmlFor={`key-${id}`}>
+                      {label}
+                    </label>
+                    <div className="key-input">
+                      <input
+                        id={`key-${id}`}
+                        className="input"
+                        type={showKeys[id] ? "text" : "password"}
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                      />
+                      <button
+                        className="key-toggle"
+                        onClick={() => toggleShow(id)}
+                        type="button"
+                      >
+                        {showKeys[id] ? "Hide" : "Show"}
+                      </button>
+                      <button className="key-toggle" onClick={onSave} type="button">
+                        Save
+                      </button>
+                      <button className="key-toggle" onClick={onClear} type="button">
+                        Clear
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                ),
+              )}
             </div>
-            <button className="key-clear" onClick={clearAll} type="button">
-              Clear all keys
-            </button>
+            <p className="hint">Stored only in your browser for local use.</p>
           </section>
 
           <section className="card">
