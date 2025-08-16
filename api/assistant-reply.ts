@@ -22,18 +22,19 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
   };
 
-  // In production, only the server env is used. In local/dev, allow body.apiKey as a fallback.
-  const isProd = !!process.env.VERCEL || process.env.NODE_ENV === "production";
-  const apiKey = isProd
-    ? (process.env.OPENAI_API_KEY || "")
-    : (process.env.OPENAI_API_KEY || body.apiKey || "");
+  const authHeader =
+    typeof req.headers.authorization === "string" ? req.headers.authorization : "";
+  const headerKey = authHeader.startsWith("Bearer ")
+    ? authHeader.slice("Bearer ".length).trim()
+    : authHeader.trim();
+
+  const apiKey =
+    headerKey || (typeof body.apiKey === "string" ? body.apiKey.trim() : "") || process.env.OPENAI_API_KEY || "";
 
   if (!apiKey) {
-    return res.status(401).json({
-      ok: false,
-      error:
-        "Unauthorized: missing OPENAI_API_KEY on the server. Set it in Vercel → Settings → Environment Variables.",
-    });
+    return res
+      .status(401)
+      .json({ ok: false, error: "Unauthorized: missing OpenAI API key" });
   }
 
   // Accept either {prompt} or {q}
