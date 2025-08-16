@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import "./PostComposer.css";
 import { useFeedStore } from "../lib/feedStore";
-import { isSuperUser } from "../lib/superUser";
+import { isSuperUser, setSuperUserKey } from "../lib/superUser";
 import type { Post } from "../types";
 import { ensureModelViewer } from "../lib/ensureModelViewer";
 
@@ -223,7 +223,8 @@ export default function PostComposer() {
   }
 
   async function handlePost() {
-    if (!isSuperUser(key)) {
+    setSuperUserKey(key);
+    if (!isSuperUser()) {
       alert("Invalid super user key");
       return;
     }
