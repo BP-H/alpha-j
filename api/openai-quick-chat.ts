@@ -3,7 +3,14 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method not allowed" });
-  const { apiKey } = (req.body || {});
+
+  const body = (req.body || {}) as { apiKey?: string };
+  const headerKey =
+    typeof req.headers.authorization === "string"
+      ? req.headers.authorization.replace(/^Bearer\s+/i, "")
+      : undefined;
+  const apiKey = body.apiKey || headerKey || process.env.OPENAI_API_KEY;
+
   if (!apiKey) return res.status(400).json({ ok: false, error: "Missing apiKey" });
 
   try {
