@@ -4,6 +4,16 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App";
+import { setSuperUserKey } from "./lib/superUser";
+
+const initialSuperKey = (() => {
+  try {
+    return localStorage.getItem("superUserKey") || "";
+  } catch {
+    return "";
+  }
+})();
+setSuperUserKey(initialSuperKey);
 
 const root = document.getElementById("root");
 if (!root) {

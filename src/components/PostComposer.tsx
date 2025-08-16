@@ -231,7 +231,8 @@ export default function PostComposer() {
   }
 
   async function handlePost() {
-    if (!isSuperUser(key)) {
+    setSuperUserKey(key);
+    if (!isSuperUser()) {
       alert("Invalid super user key");
       return;
     }
