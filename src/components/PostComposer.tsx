@@ -1,7 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import "./PostComposer.css";
 import { useFeedStore } from "../lib/feedStore";
-import { isSuperUser, setSuperUserKey } from "../lib/superUser";
+import {
+  getSuperUserKey,
+  isSuperUser,
+  setSuperUserKey,
+} from "../lib/superUser";
 import type { Post } from "../types";
 import { ensureModelViewer } from "../lib/ensureModelViewer";
 
@@ -116,6 +120,10 @@ export default function PostComposer() {
   const [pollOpen, setPollOpen] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
+
+  useEffect(() => {
+    setKey(getSuperUserKey());
+  }, []);
 
   const imgInput = useRef<HTMLInputElement>(null);
   const vidInput = useRef<HTMLInputElement>(null);
@@ -414,6 +422,13 @@ export default function PostComposer() {
             value={key}
             onChange={(e) => setKey(e.target.value)}
           />
+          <button
+            type="button"
+            className="composer__btn"
+            onClick={() => setSuperUserKey(key)}
+          >
+            Save Key
+          </button>
           <button className="composer__btn" onClick={handlePost}>
             Post
           </button>
