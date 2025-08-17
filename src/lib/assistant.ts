@@ -86,7 +86,17 @@ export async function askLLMVoice(
   let apiKey = "";
   if (typeof window !== "undefined") {
     try {
-      apiKey = window.localStorage.getItem("sn2177.apiKey") || "";
+      // New key (matches Sidebar.tsx)
+      const raw = window.localStorage.getItem("sn.keys.openai");
+      if (raw) {
+        try {
+          apiKey = String(JSON.parse(raw) ?? "").trim();
+        } catch {
+          apiKey = raw.trim();
+        }
+      }
+      // Legacy fallback
+      if (!apiKey) apiKey = window.localStorage.getItem("sn2177.apiKey") || "";
     } catch {
       apiKey = "";
     }
