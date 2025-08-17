@@ -7,7 +7,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const body = (req.body ?? {}) as {
-    apiKey?: string;
     prompt?: string;
     q?: string;
     model?: string; // e.g. "gpt-4o-mini-tts"
@@ -23,18 +22,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     };
   };
 
-  const headerKey =
+  const apiKey =
     typeof req.headers.authorization === "string"
       ? req.headers.authorization.replace(/^Bearer\s+/i, "").trim()
       : "";
-
-  const apiKey = headerKey || (typeof body.apiKey === "string" ? body.apiKey.trim() : "");
 
   if (!apiKey) {
     return res.status(401).json({
       ok: false,
       error:
-        "Unauthorized: missing OpenAI API key. Provide one in the request header or body.",
+        "Unauthorized: missing OpenAI API key. Provide one in the Authorization header.",
     });
   }
 

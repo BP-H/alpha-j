@@ -142,8 +142,7 @@ export async function askLLMVoice(
     return { ok: false, error: "missing api key" };
   }
 
-  const payload: { apiKey: string; prompt: string; ctx?: AssistantCtx } = {
-    apiKey,
+  const payload: { prompt: string; ctx?: AssistantCtx } = {
     prompt: command,
   };
   if (ctx) payload.ctx = ctx;
@@ -153,7 +152,10 @@ export async function askLLMVoice(
   try {
     const res = await fetch("/api/assistant-voice", {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
       body: JSON.stringify(payload),
       signal: ac.signal,
     });
