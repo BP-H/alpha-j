@@ -268,10 +268,21 @@ export default function AssistantOrb() {
           }
         : null
     );
-    push(resp);
+    if (resp.ok) {
+      push(resp.message);
+    } else {
+      setToast(resp.error);
+      push({
+        id: uuid(),
+        role: "assistant",
+        text: `⚠️ ${resp.error}`,
+        ts: Date.now(),
+        postId: post?.id ?? null,
+      });
+    }
 
     if (voiceOn) {
-      const stream = await askLLMVoice(
+      const streamResp = await askLLMVoice(
         T,
         post
           ? {
@@ -281,9 +292,9 @@ export default function AssistantOrb() {
             }
           : null
       );
-      if (stream) {
+      if (streamResp.ok) {
         try {
-          const blob = await new Response(stream).blob();
+          const blob = await new Response(streamResp.stream).blob();
           const url = URL.createObjectURL(blob);
           const el = audioRef.current;
           if (el) {
