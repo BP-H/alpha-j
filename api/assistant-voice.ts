@@ -133,45 +133,37 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const timer = setTimeout(() => ctrl.abort(), 45_000);
 
   try {
-    const r = await fetch("https://api.openai.com/v1/responses", {
+    // Use the Text-to-Speech endpoint instead of Responses.
+    const r = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model,
-        input,
-        audio: { voice, format: "mp3", ...(speed ? { speed } : {}) },
-        temperature: 0.3,
+        model,                               // e.g. "gpt-4o-mini-tts"
+        input: prompt,                       // plain text input
+        voice,                               // e.g. "alloy"
+        format: "mp3",
+        ...(speed ? { speed } : {}),
       }),
       signal: ctrl.signal,
     });
 
-    const data = await r.json();
     if (!r.ok) {
-      const message = data?.error?.message || "Failed";
+      // Try to read JSON error if present
+      let message = "Failed";
+      try {
+        const data = await r.json();
+        message = data?.error?.message || message;
+      } catch {}
       return res.status(r.status).json({ ok: false, error: message });
     }
 
-    const output = data?.output || [];
-    let text = "";
-    let audioB64 = "";
-    for (const part of output) {
-      if (Array.isArray(part?.content)) {
-        for (const c of part.content) {
-          if (c.type === "text" && typeof c.text === "string") {
-            text += c.text;
-          } else if (c.type === "audio" && c.audio?.data) {
-            audioB64 = c.audio.data;
-          }
-        }
-      }
-    }
-
-    if (!audioB64) {
-      return res.status(500).json({ ok: false, error: "Missing audio" });
-    }
+    // The TTS endpoint returns raw audio; convert it to base64 so the client can Blob it.
+    const arr = await r.arrayBuffer();
+    const audioB64 = Buffer.from(new Uint8Array(arr)).toString("base64");
+    const text = prompt; // No transcript returned by this endpoint; include the input text.
 
     res.status(200);
     res.setHeader("Content-Type", "application/json");

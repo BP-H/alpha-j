@@ -110,29 +110,14 @@ describe("askLLMVoice", () => {
   });
 
   it("forwards context selection and images", async () => {
-    const mockFetch = vi.fn(async (_url: any, init: any) => {
+    const mockFetch = vi.fn(async (url: any, init: any) => {
+      expect(url).toBe("/api/assistant-voice");
       const body = JSON.parse(init.body);
-      // Ensure the selection and image were embedded into the input array
-      const selectionMsg = body.input.find((m: any) =>
-        JSON.stringify(m).includes("User selected text: sel"),
-      );
-      expect(selectionMsg).toBeTruthy();
-      const imageMsg = body.input.find((m: any) =>
-        Array.isArray(m.content) && m.content.some((c: any) => c.image_url === "https://img.jpg"),
-      );
-      expect(imageMsg).toBeTruthy();
+      expect(body.ctx.selection).toBe("sel");
+      expect(body.ctx.images[0]).toBe("https://img.jpg");
       return {
         ok: true,
-        json: async () => ({
-          output: [
-            {
-              content: [
-                { type: "audio", audio: { data: "aGVsbG8=" } },
-                { type: "text", text: "hi" },
-              ],
-            },
-          ],
-        }),
+        json: async () => ({ audio: "aGVsbG8=", text: "hi", type: "audio/mpeg" }),
       } as any;
     });
     // @ts-ignore
