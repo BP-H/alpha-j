@@ -1,4 +1,5 @@
 // src/lib/api.ts
+import { getKey } from "./secureStore";
 
 interface AssistantReplyJson {
   ok: boolean;
@@ -21,14 +22,7 @@ interface PlayersJson {
 export async function assistantReply(
   prompt: string,
 ): Promise<{ ok: boolean; text?: string; error?: string }> {
-  let apiKey = "";
-  if (typeof window !== "undefined") {
-    try {
-      apiKey = localStorage.getItem("sn2177.apiKey") || "";
-    } catch {
-      apiKey = "";
-    }
-  }
+  const apiKey = getKey("sn2177.apiKey");
   try {
     const r = await fetch("/api/assistant-reply", {
       method: "POST",
