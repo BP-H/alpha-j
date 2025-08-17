@@ -1,6 +1,7 @@
 // src/lib/search.ts
 import type { Post, SearchResult } from "../types";
 import { demoPosts } from "./placeholders";
+import { fetchWithTimeout } from "./fetchWithTimeout";
 
 export function localSearchPosts(q: string, posts?: Post[]): SearchResult[] {
   const data = posts?.length ? posts : demoPosts;
@@ -22,12 +23,13 @@ export function localSearchPosts(q: string, posts?: Post[]): SearchResult[] {
 // Optional: web search via your backend
 export async function webSearch(q: string): Promise<SearchResult[]> {
   try {
-    const res = await fetch("/api/search", {
+    const res = await fetchWithTimeout("/api/search", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ q }),
+      timeout: 10_000,
     });
-    if (!res.ok) return [];
+    if (!res || !res.ok) return [];
     const data = await res.json();
     return (data?.results || []) as SearchResult[];
   } catch { return []; }

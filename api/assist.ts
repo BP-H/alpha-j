@@ -1,3 +1,5 @@
+import { fetchWithTimeout } from "../src/lib/fetchWithTimeout";
+
 export const config = { runtime: 'edge' };
 
 export default async function handler(req: Request): Promise<Response> {
@@ -40,7 +42,7 @@ export default async function handler(req: Request): Promise<Response> {
   }
 
   try {
-    const r = await fetch('https://api.openai.com/v1/responses', {
+    const r = await fetchWithTimeout('https://api.openai.com/v1/responses', {
       method: 'POST',
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -54,7 +56,15 @@ export default async function handler(req: Request): Promise<Response> {
           '\n\nInstruction:\nExplain this clearly in a few sentences for a non-technical person.',
         max_output_tokens: 250,
       }),
+      timeout: 20_000,
     });
+
+    if (!r) {
+      return new Response(JSON.stringify({ error: 'Upstream request timed out' }), {
+        status: 504,
+        headers: corsHeaders,
+      });
+    }
 
     const data = await r.json();
     if (!r.ok) {

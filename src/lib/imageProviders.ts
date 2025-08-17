@@ -1,5 +1,6 @@
 import { getKey as getStoredKey } from "./secureStore";
 import bus from "./bus";
+import { fetchWithTimeout } from "./fetchWithTimeout";
 
 export type FeedImage = {
   id: string;
@@ -49,8 +50,8 @@ function warnMissingKey(name: string) {
 /** PICSUM — no key needed */
 async function fetchPicsum(page: number, perPage: number): Promise<FeedImage[]> {
   const url = `https://picsum.photos/v2/list?page=${page}&limit=${perPage}`;
-  const res = await fetch(url);
-  if (!res.ok) return [];
+  const res = await fetchWithTimeout(url, { timeout: 10_000 });
+  if (!res || !res.ok) return [];
   let list: any[] = [];
   try {
     list = await res.json();
@@ -85,8 +86,11 @@ async function fetchUnsplash(page: number, perPage: number, query?: string): Pro
     orientation: "landscape",
     query: query || "",
   });
-  const res = await fetch(`${base}?${params.toString()}`, { headers: { Authorization: `Client-ID ${key}` } });
-  if (!res.ok) return [];
+  const res = await fetchWithTimeout(`${base}?${params.toString()}`, {
+    headers: { Authorization: `Client-ID ${key}` },
+    timeout: 10_000,
+  });
+  if (!res || !res.ok) return [];
   let json: any;
   try {
     json = await res.json();
@@ -117,8 +121,11 @@ async function fetchPexels(page: number, perPage: number, query?: string): Promi
     per_page: String(perPage),
     query: query || "",
   });
-  const res = await fetch(`${base}?${params.toString()}`, { headers: { Authorization: key } });
-  if (!res.ok) return [];
+  const res = await fetchWithTimeout(`${base}?${params.toString()}`, {
+    headers: { Authorization: key },
+    timeout: 10_000,
+  });
+  if (!res || !res.ok) return [];
   let json: any;
   try {
     json = await res.json();

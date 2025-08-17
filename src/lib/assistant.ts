@@ -2,6 +2,7 @@
 import type { AssistantMessage, RemixSpec } from "../types";
 import bus from "./bus";
 import { getKey } from "./secureStore";
+import { fetchWithTimeout } from "./fetchWithTimeout";
 
 type AssistantCtx = {
   postId?: string | number;
@@ -131,16 +132,21 @@ export async function askLLM(
   if (model) payload.model = model;
   if (apiKey) payload.apiKey = apiKey;
 
-  const ac = new AbortController();
-  const timeout = setTimeout(() => ac.abort(), 15_000);
   try {
-    const res = await fetch("/api/assistant-reply", {
+    const res = await fetchWithTimeout("/api/assistant-reply", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
-      signal: ac.signal,
+      timeout: 15_000,
     });
-    clearTimeout(timeout);
+    if (!res) {
+      const msg = "request timed out";
+      const toast = `Assistant request failed: ${msg}`;
+      bus.emit?.("toast", { message: toast });
+      console.error("assistant request failed:", msg);
+      bus.emit?.("notify", toast);
+      return { ok: false, error: msg };
+    }
 
     if (!res.ok) {
       const msg = await parseError(res);
@@ -163,7 +169,6 @@ export async function askLLM(
     };
     return { ok: true, message };
   } catch (e: any) {
-    clearTimeout(timeout);
     const msg = e?.message || "request failed";
     const toast = `Assistant request failed: ${msg}`;
     bus.emit?.("toast", { message: toast });
@@ -189,16 +194,21 @@ export async function askLLMVoice(
   };
   if (ctx) payload.ctx = ctx;
 
-  const ac = new AbortController();
-  const timeout = setTimeout(() => ac.abort(), 15_000);
   try {
-    const res = await fetch("/api/assistant-voice", {
+    const res = await fetchWithTimeout("/api/assistant-voice", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
-      signal: ac.signal,
+      timeout: 15_000,
     });
-    clearTimeout(timeout);
+    if (!res) {
+      const msg = "request timed out";
+      const toast = `Assistant voice request failed: ${msg}`;
+      bus.emit?.("toast", { message: toast });
+      console.error("assistant voice request failed:", msg);
+      bus.emit?.("notify", toast);
+      return { ok: false, error: msg };
+    }
 
     if (!res.ok) {
       const msg = await parseError(res);
@@ -213,7 +223,6 @@ export async function askLLMVoice(
     const text = res.headers.get("x-text") ?? undefined;
     return { ok: true, audio: bytes, url, type, text };
   } catch (e: any) {
-    clearTimeout(timeout);
     const rawMsg = e?.message || "request failed";
     const msg = /network/i.test(rawMsg)
       ? "network error, please check your connection"
@@ -230,11 +239,13 @@ export async function imageToVideo(
   spec: RemixSpec
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
   try {
-    const res = await fetch("/api/image-to-video", {
+    const res = await fetchWithTimeout("/api/image-to-video", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(spec),
+      timeout: 20_000,
     });
+    if (!res) throw new Error("request timed out");
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     return { ok: true, url: data.url };

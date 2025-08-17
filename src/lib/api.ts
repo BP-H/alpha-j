@@ -1,6 +1,7 @@
 // src/lib/api.ts
 import { getKey } from "./secureStore";
 import bus from "./bus";
+import { fetchWithTimeout } from "./fetchWithTimeout";
 
 let warned = false;
 function warnOnce(msg: string) {
@@ -41,15 +42,16 @@ export async function assistantReply(
   const payload: AssistantReplyPayload = { prompt };
   if (apiKey) payload.apiKey = apiKey;
 
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
-    const res = await fetch("/api/assistant-reply", {
+    const res = await fetchWithTimeout("/api/assistant-reply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
-      signal: controller.signal,
+      timeout: 15_000,
     });
+    if (!res) {
+      return { ok: false, error: "Request timed out" };
+    }
     if (!res.ok) {
       let err = `HTTP ${res.status}`;
       try {
@@ -75,15 +77,13 @@ export async function assistantReply(
   } catch (e: unknown) {
     const error = e instanceof Error ? e.message : "Network error";
     return { ok: false, error };
-  } finally {
-    clearTimeout(timeout);
   }
 }
 
 export async function fetchPlayers(): Promise<Player[]> {
   try {
-    const r = await fetch("/api/players");
-    if (!r.ok) {
+    const r = await fetchWithTimeout("/api/players", { timeout: 10_000 });
+    if (!r || !r.ok) {
       return [];
     }
     let data: PlayersJson;

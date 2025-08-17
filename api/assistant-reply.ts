@@ -1,5 +1,6 @@
 // /api/assistant-reply.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { fetchWithTimeout } from "../src/lib/fetchWithTimeout";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -97,19 +98,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   messages.push({ role: "user", content: prompt });
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 10_000);
-
   try {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    const r = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({ model, temperature: 0.3, messages }),
-      signal: ctrl.signal,
+      timeout: 10_000,
     });
+
+    if (!r) {
+      return res.status(504).json({ ok: false, error: "Upstream request timed out" });
+    }
 
     const j = await r.json();
     if (!r.ok) {
@@ -123,7 +125,5 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Network error";
     return res.status(500).json({ ok: false, error: message });
-  } finally {
-    clearTimeout(timer);
   }
 }

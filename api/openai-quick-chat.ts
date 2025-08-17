@@ -1,5 +1,6 @@
 // /api/openai-quick-chat.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { fetchWithTimeout } from "../src/lib/fetchWithTimeout";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -15,7 +16,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!apiKey) return res.status(400).json({ ok: false, error: "Missing apiKey" });
 
   try {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
+    const r = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
@@ -29,7 +30,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ],
         temperature: 0,
       }),
+      timeout: 10_000,
     });
+    if (!r) return res.status(504).json({ ok: false, error: "Upstream request timed out" });
     const data = await r.json();
     if (!r.ok) return res.status(r.status).json({ ok: false, error: data?.error?.message || "Failed" });
     const text = data?.choices?.[0]?.message?.content ?? "";

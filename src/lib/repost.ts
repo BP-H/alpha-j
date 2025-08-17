@@ -1,4 +1,5 @@
 import bus from "./bus";
+import { fetchWithTimeout } from "./fetchWithTimeout";
 
 export type Platform = 'x' | 'facebook' | 'linkedin';
 
@@ -19,16 +20,17 @@ export async function repost(
 ): Promise<boolean> {
   try {
     if (import.meta.env.PROD) {
-      const res = await fetch(`/api/repost/${platform}`, {
+      const res = await fetchWithTimeout(`/api/repost/${platform}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ content }),
+        timeout: 10_000,
       });
 
-      if (!res.ok) {
-        throw new Error(`Request failed with status ${res.status}`);
+      if (!res || !res.ok) {
+        throw new Error(`Request failed${res ? ` with status ${res.status}` : ' due to timeout'}`);
       }
     } else {
       // eslint-disable-next-line no-console -- helpful during development

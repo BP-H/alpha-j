@@ -1,5 +1,6 @@
 // /api/openai-ping.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { fetchWithTimeout } from "../src/lib/fetchWithTimeout";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") return res.status(405).json({ ok: false, error: "Method not allowed" });
@@ -14,9 +15,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (!apiKey) return res.status(400).json({ ok: false, error: "Missing apiKey" });
 
   try {
-    const r = await fetch("https://api.openai.com/v1/models?limit=1", {
+    const r = await fetchWithTimeout("https://api.openai.com/v1/models?limit=1", {
       headers: { Authorization: `Bearer ${apiKey}` },
+      timeout: 10_000,
     });
+    if (!r) return res.status(504).json({ ok: false, error: "Upstream request timed out" });
     const data = await r.json().catch(() => ({}));
     if (!r.ok) return res.status(r.status).json({ ok: false, error: data?.error?.message || "Failed" });
     return res.status(200).json({ ok: true, sampleModel: data?.data?.[0]?.id || "ok" });
