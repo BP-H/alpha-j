@@ -18,6 +18,19 @@ interface PlayersJson {
   error?: string;
 }
 
+let missingKeyNoticeShown = false;
+function notifyMissingKey() {
+  if (missingKeyNoticeShown) return;
+  missingKeyNoticeShown = true;
+  if (typeof window !== "undefined") {
+    try {
+      window.alert?.("Missing API key. Configure sn2177.apiKey in localStorage.");
+    } catch {
+      // ignore
+    }
+  }
+}
+
 export async function assistantReply(
   prompt: string,
 ): Promise<{ ok: boolean; text?: string; error?: string }> {
@@ -28,6 +41,10 @@ export async function assistantReply(
     } catch {
       apiKey = "";
     }
+  }
+  if (!apiKey) {
+    notifyMissingKey();
+    return { ok: true, text: `💡 stub: “${prompt}”` };
   }
   try {
     const r = await fetch("/api/assistant-reply", {

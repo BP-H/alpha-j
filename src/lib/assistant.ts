@@ -7,6 +7,19 @@ type AssistantCtx = {
   text?: string;
 } | null;
 
+let voiceKeyNoticeShown = false;
+function notifyVoiceKey() {
+  if (voiceKeyNoticeShown) return;
+  voiceKeyNoticeShown = true;
+  if (typeof window !== "undefined") {
+    try {
+      window.alert?.("Missing API key. Configure sn2177.apiKey in localStorage.");
+    } catch {
+      // ignore
+    }
+  }
+}
+
 export async function askLLM(
   input: string,
   ctx?: AssistantCtx,
@@ -90,6 +103,11 @@ export async function askLLMVoice(
     } catch {
       apiKey = "";
     }
+  }
+
+  if (!apiKey) {
+    notifyVoiceKey();
+    return null;
   }
 
   try {
