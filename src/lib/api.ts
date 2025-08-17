@@ -14,6 +14,15 @@ function warnOnce(msg: string) {
 interface AssistantReplyPayload {
   prompt: string;
   apiKey?: string;
+  model?: string;
+  voice?: string;
+  ctx?: {
+    postId?: string | number;
+    title?: string;
+    text?: string;
+    selection?: string;
+    images?: string[];
+  };
 }
 
 export type AssistantReplyResult =
@@ -44,7 +53,7 @@ export async function assistantReply(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
-    const res = await fetch("/api/assistant-reply", {
+    const res = await fetch("/api/assistant", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -65,19 +74,43 @@ export async function assistantReply(
       }
       return { ok: false, error: err };
     }
-    const data = (await res.json()) as AssistantReplyResult;
-    if (data.ok && typeof (data as any).text === "string") {
-      return { ok: true, text: (data as any).text };
-    }
-    const error =
-      typeof (data as any).error === "string" ? (data as any).error : "Failed";
-    return { ok: false, error };
+
+    const { text } = await readAssistantStream(res);
+    return { ok: true, text };
   } catch (e: unknown) {
     const error = e instanceof Error ? e.message : "Network error";
     return { ok: false, error };
   } finally {
     clearTimeout(timeout);
   }
+}
+
+async function readAssistantStream(res: Response): Promise<{ text: string; audio: string }> {
+  const reader = res.body?.getReader();
+  if (!reader) return { text: "", audio: "" };
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+  let audio = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buffer.indexOf("\n\n")) >= 0) {
+      const chunk = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      let event = "";
+      let data = "";
+      for (const line of chunk.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (event === "text") text += JSON.parse(data);
+      else if (event === "audio") audio += data;
+    }
+  }
+  return { text, audio };
 }
 
 export async function fetchPlayers(): Promise<Player[]> {

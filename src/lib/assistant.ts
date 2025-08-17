@@ -87,7 +87,7 @@ export async function askLLM(
   const ac = new AbortController();
   const timeout = setTimeout(() => ac.abort(), 15_000);
   try {
-    const res = await fetch("/api/assistant-reply", {
+    const res = await fetch("/api/assistant", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
@@ -104,13 +104,13 @@ export async function askLLM(
       return { ok: false, error: msg };
     }
 
-    const data = await res.json();
+    const { text } = await readAssistantStream(res);
     const message: AssistantMessage = {
       id:
         globalThis.crypto?.randomUUID?.() ??
         Math.random().toString(36).slice(2),
       role: "assistant",
-      text: data.text || "ok",
+      text: text || "ok",
       ts: Date.now(),
       postId: ctx?.postId ?? null,
     };
@@ -145,7 +145,7 @@ export async function askLLMVoice(
   const ac = new AbortController();
   const timeout = setTimeout(() => ac.abort(), 15_000);
   try {
-    const res = await fetch("/api/assistant-voice", {
+    const res = await fetch("/api/assistant", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
@@ -162,11 +162,9 @@ export async function askLLMVoice(
       return { ok: false, error: msg };
     }
 
-    const data = await res.json();
-    const type = data?.type || "audio/mpeg";
-    const b64 = data?.audio;
-    if (!b64 || typeof b64 !== "string") {
-      const msg = data?.error || "invalid response";
+    const { text, audio } = await readAssistantStream(res);
+    if (!audio) {
+      const msg = "invalid response";
       const toast = `Assistant voice request failed: ${msg}`;
       bus.emit?.("toast", { message: toast });
       console.error("assistant voice request failed:", msg);
@@ -174,12 +172,12 @@ export async function askLLMVoice(
       return { ok: false, error: msg };
     }
 
-    const binaryString = atob(b64);
+    const binaryString = atob(audio);
     const len = binaryString.length;
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
 
-    return { ok: true, audio: bytes, type, text: data?.text };
+    return { ok: true, audio: bytes, type: "audio/mpeg", text };
   } catch (e: any) {
     clearTimeout(timeout);
     const rawMsg = e?.message || "request failed";
@@ -192,6 +190,34 @@ export async function askLLMVoice(
     bus.emit?.("notify", toast);
     return { ok: false, error: msg };
   }
+}
+
+async function readAssistantStream(res: Response): Promise<{ text: string; audio: string }> {
+  const reader = res.body?.getReader();
+  if (!reader) return { text: "", audio: "" };
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let text = "";
+  let audio = "";
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let idx;
+    while ((idx = buffer.indexOf("\n\n")) >= 0) {
+      const chunk = buffer.slice(0, idx);
+      buffer = buffer.slice(idx + 2);
+      let event = "";
+      let data = "";
+      for (const line of chunk.split("\n")) {
+        if (line.startsWith("event:")) event = line.slice(6).trim();
+        else if (line.startsWith("data:")) data += line.slice(5).trim();
+      }
+      if (event === "text") text += JSON.parse(data);
+      else if (event === "audio") audio += data;
+    }
+  }
+  return { text, audio };
 }
 
 export async function imageToVideo(

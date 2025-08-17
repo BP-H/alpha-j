@@ -1,5 +1,6 @@
-// /api/assistant-reply.ts
+// /api/assistant.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import OpenAI from "openai";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -9,11 +10,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = (req.body ?? {}) as {
     apiKey?: string;
     prompt?: string;
-    q?: string;
     model?: string;
-    // We accept both shapes:
-    //  - { ctx: { postId?, title?, text? } }
-    //  - { ctx: { post: { id?, title?, text? } } }
+    voice?: string;
     ctx?: {
       postId?: string | number;
       title?: string;
@@ -23,11 +21,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       post?: { id?: string | number; title?: string; text?: string };
     };
   };
+
   const headerKey =
     typeof req.headers.authorization === "string"
       ? req.headers.authorization.replace(/^Bearer\s+/i, "").trim()
       : "";
-  // For local dev the client may supply an OpenAI key; production should set OPENAI_API_KEY on the server.
+
   const apiKey =
     (headerKey || (typeof body.apiKey === "string" ? body.apiKey.trim() : "")) ||
     (process.env.OPENAI_API_KEY || "");
@@ -40,14 +39,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  // Accept either {prompt} or {q}
   const raw =
     typeof body.prompt === "string"
       ? body.prompt
-      : typeof body.q === "string"
-        ? body.q
-        : "";
-  const prompt = (raw || "").trim().slice(0, 2000);
+      : "";
+
+  const prompt = (raw || "").trim().slice(0, 4000);
   if (!prompt) {
     return res.status(400).json({ ok: false, error: "Missing prompt" });
   }
@@ -55,7 +52,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const model =
     typeof body.model === "string" && body.model.trim()
       ? body.model.trim()
-      : "gpt-4o-mini";
+      : "gpt-4o-mini-tts";
+  const voice =
+    typeof body.voice === "string" && body.voice.trim()
+      ? body.voice.trim()
+      : "alloy";
 
   const ctx = body.ctx || {};
   const ctxPostId = ctx.postId ?? ctx.post?.id;
@@ -79,7 +80,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (ctxPostId || ctxTitle || ctxText) {
     const parts: string[] = [];
     if (ctxPostId) parts.push(`ID ${ctxPostId}`);
-    if (ctxTitle) parts.push(`title "${ctxTitle}"`);
+    if (ctxTitle) parts.push(`title \"${ctxTitle}\"`);
     if (ctxText) parts.push(`content: ${ctxText}`);
     messages.push({
       role: "system",
@@ -97,33 +98,48 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   messages.push({ role: "user", content: prompt });
 
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 10_000);
-
   try {
-    const r = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ model, temperature: 0.3, messages }),
-      signal: ctrl.signal,
+    const openai = new OpenAI({ apiKey });
+    const input = messages.map((m) => ({
+      role: m.role,
+      content: [{ type: "text", text: m.content }],
+    }));
+
+    const result = await openai.responses.create({
+      model,
+      input,
+      modalities: ["text", "audio"],
+      audio: { voice, format: "mp3" },
+      temperature: 0.3,
     });
 
-    const j = await r.json();
-    if (!r.ok) {
-      return res
-        .status(r.status)
-        .json({ ok: false, error: j?.error?.message || "Failed" });
+    const output = result.output || [];
+    const textParts = Array.isArray(output[0]?.content) ? output[0].content : [];
+    let text = "";
+    for (const part of textParts) {
+      if (part?.type === "output_text" && typeof part.text === "string") {
+        text += part.text;
+      }
     }
+    const audioB64 =
+      output?.[1]?.content?.[0]?.audio?.data && typeof output[1].content[0].audio.data === "string"
+        ? output[1].content[0].audio.data
+        : "";
 
-    const text = (j?.choices?.[0]?.message?.content || "").trim();
-    return res.status(200).json({ ok: true, text });
+    res.status(200);
+    res.setHeader("Content-Type", "text/event-stream");
+    res.setHeader("Cache-Control", "no-cache");
+    res.setHeader("Connection", "keep-alive");
+
+    res.write(`event: text\ndata: ${JSON.stringify(text)}\n\n`);
+    if (audioB64) {
+      res.write(`event: audio\ndata: ${audioB64}\n\n`);
+    }
+    res.write(`event: end\ndata: end\n\n`);
+    return res.end();
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Network error";
     return res.status(500).json({ ok: false, error: message });
-  } finally {
-    clearTimeout(timer);
   }
 }
+
