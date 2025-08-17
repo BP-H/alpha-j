@@ -163,6 +163,18 @@
   width: 100%;
 }
 
+.key-status {
+  display: flex;
+  align-items: center;
+  font-size: 1.25rem;
+}
+.key-status.success {
+  color: #22c55e;
+}
+.key-status.error {
+  color: #ef4444;
+}
+
 @media (max-width: 400px) {
   .key-input {
     flex-direction: column;
