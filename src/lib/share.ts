@@ -58,34 +58,36 @@ export async function sharePost(arg: Post | ShareOptions | string): Promise<bool
   } catch {
     // ignore and try last fallback
   }
+  // Fallback: temporary <input> + Clipboard API
+  if (typeof document === "undefined" || typeof navigator === "undefined") {
+    console.error("sharePost: clipboard unavailable");
+    return false;
+  }
 
-  // Legacy execCommand fallback
-  // TODO: Remove once navigator.clipboard has broader support.
-  if (typeof document === "undefined") return false;
-
-  const ta = document.createElement("textarea");
+  const input = document.createElement("input");
   try {
     if (!document.body) {
       console.error("sharePost: document.body is not available");
       return false;
     }
 
-    ta.value = url;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    const success = document.execCommand("copy");
-    if (!success) {
-      console.error("sharePost: copy command failed");
+    input.value = url;
+    input.style.position = "fixed";
+    input.style.opacity = "0";
+    document.body.appendChild(input);
+    input.select();
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+      return true;
     }
-    return success;
+    console.error("sharePost: Clipboard API unavailable");
+    return false;
   } catch (err) {
     console.error("sharePost: unable to copy", err);
     return false;
   } finally {
-    if (document.body && ta.parentNode === document.body) {
-      document.body.removeChild(ta);
+    if (document.body && input.parentNode === document.body) {
+      document.body.removeChild(input);
     }
   }
 }
