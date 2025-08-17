@@ -1,4 +1,5 @@
 import { getKey as getStoredKey } from "./secureStore";
+import bus from "./bus";
 
 export type FeedImage = {
   id: string;
@@ -39,7 +40,9 @@ function warnMissingKey(name: string) {
   const upper = name.toUpperCase();
   if (!warnedProviders.has(upper)) {
     warnedProviders.add(upper);
-    console.warn(`VITE_${upper}_KEY is not set; falling back to placeholder images`);
+    const message = `VITE_${upper}_KEY is not set; falling back to placeholder images`;
+    bus.emit?.('toast', { message });
+    console.warn(message);
   }
 }
 

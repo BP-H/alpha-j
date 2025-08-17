@@ -1,5 +1,7 @@
 // src/bootstrap.ts
 // Logs runtime errors early and shows a simple fallback message.
+import bus from "./lib/bus";
+
 function showFallback() {
   if (document.getElementById('bootstrap-error')) return;
   const el = document.createElement('p');
@@ -18,11 +20,15 @@ function showFallback() {
 }
 
 window.onerror = function (_message, _source, _lineno, _colno, error) {
+  const message = 'Uncaught error';
+  bus.emit?.('toast', { message });
   console.error('Uncaught error:', error);
   showFallback();
 };
 
 window.onunhandledrejection = function (event) {
+  const message = 'Unhandled promise rejection';
+  bus.emit?.('toast', { message });
   console.error('Unhandled promise rejection:', event.reason);
   showFallback();
 };

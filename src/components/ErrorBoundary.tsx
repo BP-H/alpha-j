@@ -1,4 +1,5 @@
 import React, { ReactNode } from "react";
+import bus from "../lib/bus";
 
 type Props = {
   children: ReactNode;
@@ -27,6 +28,10 @@ export default class ErrorBoundary extends React.Component<Props, State> {
   componentDidCatch(error: unknown, info: React.ErrorInfo) {
     // Log with best-effort typing; don’t throw from here
     // eslint-disable-next-line no-console
+    const message = `ErrorBoundary caught: ${
+      (error as Error)?.message || String(error)
+    }`;
+    bus.emit?.("toast", { message });
     console.error("ErrorBoundary caught:", error, info);
     this.setState({ info });
   }

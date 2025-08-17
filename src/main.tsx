@@ -5,6 +5,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import App from "./App";
 import { setSuperUserKey } from "./lib/superUser";
+import bus from "./lib/bus";
 
 const initialSuperKey = (() => {
   try {
@@ -17,7 +18,9 @@ setSuperUserKey(initialSuperKey);
 
 const root = document.getElementById("root");
 if (!root) {
-  console.error("Missing #root element – app cannot mount.");
+  const message = "Missing #root element – app cannot mount.";
+  bus.emit?.("toast", { message });
+  console.error(message);
   const fallback = document.createElement("p");
   fallback.textContent = "An unexpected error occurred while loading the app.";
   document.body.appendChild(fallback);

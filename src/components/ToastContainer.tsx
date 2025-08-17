@@ -6,8 +6,14 @@ export default function ToastContainer() {
   const [msg, setMsg] = useState("");
 
   useEffect(() => {
-    const off = on("notify", (m: string) => setMsg(m));
-    return off;
+    const offNotify = on("notify", (m: string) => setMsg(m));
+    const offToast = on("toast", ({ message }: { message: string }) =>
+      setMsg(message)
+    );
+    return () => {
+      offNotify();
+      offToast();
+    };
   }, []);
 
   useEffect(() => {

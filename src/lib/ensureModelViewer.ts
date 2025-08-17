@@ -1,3 +1,5 @@
+import bus from "./bus";
+
 const REMOTE_SRC =
   'https://unpkg.com/@google/model-viewer@4.1.0/dist/model-viewer.min.js';
 const REMOTE_SRI =
@@ -40,7 +42,9 @@ export async function ensureModelViewer() {
   try {
     await load(REMOTE_SRC, REMOTE_SRI);
   } catch (err) {
-    console.warn('Falling back to local model-viewer', err);
+    const message = 'Falling back to local model-viewer';
+    bus.emit?.('toast', { message });
+    console.warn(message, err);
     await load(LOCAL_SRC);
   }
 }
