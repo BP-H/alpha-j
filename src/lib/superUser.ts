@@ -1,47 +1,27 @@
 // superUser.ts
 // Unified helpers for setting/getting/checking a Super User key.
-// - Persists to localStorage under one stable key
-// - Keeps an in-memory cache
+// - Uses in-memory secure storage (no localStorage persistence)
 // - Prefers env VITE_SUPER_USER_KEY when configured; otherwise falls back to a non-empty stored key (dev use)
 
 export const STORAGE_KEY = "12345";
 
-let superUserKeyMem = "";
+import { getKey, setKey, removeKey } from "./secureStore";
 
-/** Safely read from localStorage (SSRed/blocked environments safe). */
-function readStored(): string {
-  if (typeof localStorage === "undefined") return "";
-  try {
-    return localStorage.getItem(STORAGE_KEY)?.trim() || "";
-  } catch {
-    return "";
-  }
-}
-
-/** Current key (memory first, then storage). */
+/** Current key. */
 export function getSuperUserKey(): string {
-  if (superUserKeyMem) return superUserKeyMem;
-  superUserKeyMem = readStored();
-  return superUserKeyMem;
+  return getKey(STORAGE_KEY);
 }
 
-/** Set & persist the key (empty string clears storage). */
+/** Set the key (empty string clears storage). */
 export function setSuperUserKey(key: string) {
   const k = (key ?? "").trim();
-  superUserKeyMem = k;
-  if (typeof localStorage !== "undefined") {
-    try {
-      if (k) localStorage.setItem(STORAGE_KEY, k);
-      else localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-  }
+  if (k) setKey(STORAGE_KEY, k);
+  else removeKey(STORAGE_KEY);
 }
 
 /** Optional convenience to clear the key explicitly. */
 export function clearSuperUserKey() {
-  setSuperUserKey("");
+  removeKey(STORAGE_KEY);
 }
 
 /**
