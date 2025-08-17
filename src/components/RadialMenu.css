@@ -1,5 +1,5 @@
 :root {
-  --orb-color: var(--pink, #ff74de);
+  --orb-color: var(--pink, #ff007f);
   --rm-bg: color-mix(in srgb, var(--orb-color) 8%, var(--glass, rgba(14, 16, 22, 0.36)));
   --rm-bg-hover: color-mix(in srgb, var(--orb-color) 14%, var(--glass, rgba(14, 16, 22, 0.36)));
   --rm-border: var(--stroke-2);

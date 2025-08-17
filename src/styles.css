@@ -32,7 +32,7 @@ button, input, textarea, select { font: inherit; color: inherit; }
   --orb-size: 76px;
 
   /* Theme accents */
-  --pink: #ff74de;   /* Assistant orb theme */
+  --pink: #ff007f;   /* Assistant orb theme */
   --blue: #0a84ff;   /* Brand/top-left orb theme */
   --orb-color: var(--pink);
   --orb-surface: color-mix(in srgb, #fff 65%, var(--orb-color) 35%);
@@ -129,26 +129,59 @@ button, input, textarea, select { font: inherit; color: inherit; }
    Assistant Orb (bottom-right floating)
    ========================= */
 .assistant-orb{
+  --orb-color: var(--pink);
   position: fixed; z-index: 75;
   width: var(--orb-size); height: var(--orb-size);
   border-radius: 50%;
   border: 1px solid rgba(255,255,255,.12);
-  overflow: hidden; cursor: grab;
+  cursor: grab;
   display: grid; place-items: center;
   contain: layout paint;
   will-change: transform;
   transition: transform .16s ease, box-shadow .2s ease, filter .2s ease;
   background: radial-gradient(120% 120% at 30% 30%, #fff, var(--orb-surface) 60%, var(--orb-color));
-  box-shadow: var(--orb-shadow), 0 0 0 8px var(--orb-ring);
+  box-shadow:
+    0 0 10px color-mix(in srgb, var(--orb-color) 60%, transparent),
+    0 0 30px color-mix(in srgb, var(--orb-color) 30%, transparent),
+    var(--orb-shadow), 0 0 0 8px var(--orb-ring);
+  animation: orbPulse 3s ease-in-out infinite;
+  overflow: hidden;
 }
 .assistant-orb:hover { filter: saturate(115%); }
 .assistant-orb.flying { pointer-events: none; filter: saturate(150%); transition: none; }
 .assistant-orb.mic {
-  box-shadow: var(--orb-shadow), 0 0 0 10px var(--orb-ring-strong);
+  box-shadow:
+    0 0 15px color-mix(in srgb, var(--orb-color) 70%, transparent),
+    0 0 40px color-mix(in srgb, var(--orb-color) 40%, transparent),
+    var(--orb-shadow), 0 0 0 10px var(--orb-ring-strong);
 }
 .assistant-orb__core{
+  position: relative;
   width: 56px; height: 56px; border-radius: 50%;
-  background: radial-gradient(60% 60% at 40% 35%, rgba(255,255,255,.95), rgba(255,255,255,.28) 65%, transparent 70%);
+  background: radial-gradient(60% 60% at 40% 35%,
+    color-mix(in srgb, #fff 90%, var(--orb-color) 10%),
+    color-mix(in srgb, #fff 30%, var(--orb-color) 70%) 65%,
+    transparent 70%);
+  overflow: hidden;
+}
+.assistant-orb__core::before{
+  content:"";
+  position:absolute; inset:-50%; border-radius:50%;
+  background:conic-gradient(from 0deg, var(--orb-color), transparent 120deg);
+  animation: orbSpin 4s linear infinite;
+  mix-blend-mode:screen;
+  filter:blur(12px);
+}
+.assistant-orb__core::after{
+  content:"";
+  position:absolute; inset:-50%; border-radius:50%;
+  background:repeating-conic-gradient(from 0deg,
+    color-mix(in srgb, var(--orb-color) 80%, transparent) 0deg 20deg,
+    transparent 20deg 40deg);
+  animation: orbSpin 6s linear infinite reverse;
+  mix-blend-mode:screen;
+  filter:blur(18px);
+  opacity:.5;
 }
 .assistant-orb__ring{
   position: absolute; inset: -4px; border-radius: 50%;
@@ -158,6 +191,21 @@ button, input, textarea, select { font: inherit; color: inherit; }
 @keyframes orb-ping{
   0%   { box-shadow: 0 0 0 0 var(--orb-ping); }
   100% { box-shadow: 0 0 0 28px rgba(0,0,0,0); }
+}
+@keyframes orbSpin{ to{ transform: rotate(360deg); } }
+@keyframes orbPulse{
+  0%,100%{
+    box-shadow:
+      0 0 10px color-mix(in srgb, var(--orb-color) 60%, transparent),
+      0 0 30px color-mix(in srgb, var(--orb-color) 30%, transparent),
+      var(--orb-shadow), 0 0 0 8px var(--orb-ring);
+  }
+  50%{
+    box-shadow:
+      0 0 20px color-mix(in srgb, var(--orb-color) 80%, transparent),
+      0 0 50px color-mix(in srgb, var(--orb-color) 50%, transparent),
+      var(--orb-shadow), 0 0 0 8px var(--orb-ring);
+  }
 }
 .assistant-orb__toast{
   position: absolute;
