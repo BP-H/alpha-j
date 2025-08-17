@@ -18,6 +18,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       postId?: string | number;
       title?: string;
       text?: string;
+      selection?: string;
+      image?: string;
       post?: { id?: string | number; title?: string; text?: string };
     };
   };
@@ -59,7 +61,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctxPostId = ctx.postId ?? ctx.post?.id;
   const ctxTitle = ctx.title ?? ctx.post?.title;
   const ctxTextRaw = ctx.text ?? ctx.post?.text;
+  const ctxSelectionRaw = ctx.selection;
+  const ctxImageRaw = ctx.image;
   const ctxText = typeof ctxTextRaw === "string" ? ctxTextRaw.slice(0, 1000) : "";
+  const ctxSelection =
+    typeof ctxSelectionRaw === "string" ? ctxSelectionRaw.slice(0, 1000) : "";
+  const ctxImage = typeof ctxImageRaw === "string" ? ctxImageRaw : "";
 
   const messages: Array<{ role: "system" | "user"; content: string }> = [
     {
@@ -78,6 +85,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       role: "system",
       content: `Context from hovered post — ${parts.join(" — ")}`,
     });
+  }
+  if (ctxSelection) {
+    messages.push({ role: "system", content: `User selection — ${ctxSelection}` });
+  }
+  if (ctxImage) {
+    messages.push({ role: "system", content: `Hovered image — ${ctxImage}` });
   }
 
   messages.push({ role: "user", content: prompt });

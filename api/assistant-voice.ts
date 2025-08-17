@@ -14,6 +14,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     model?: string;  // e.g. "gpt-4o-mini-tts"
     voice?: string;  // e.g. "alloy", "verse", "aria"
     speed?: number;  // optional: 0.25 - 4
+    ctx?: {
+      postId?: string | number;
+      title?: string;
+      text?: string;
+      selection?: string;
+      image?: string;
+      post?: { id?: string | number; title?: string; text?: string };
+    };
   };
 
   const headerKey =
@@ -45,6 +53,27 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({ ok: false, error: "Missing prompt" });
   }
 
+  const ctx = body.ctx || {};
+  const ctxPostId = ctx.postId ?? ctx.post?.id;
+  const ctxTitle = ctx.title ?? ctx.post?.title;
+  const ctxTextRaw = ctx.text ?? ctx.post?.text;
+  const ctxSelectionRaw = ctx.selection;
+  const ctxImageRaw = ctx.image;
+  const ctxText = typeof ctxTextRaw === "string" ? ctxTextRaw.slice(0, 1000) : "";
+  const ctxSelection =
+    typeof ctxSelectionRaw === "string" ? ctxSelectionRaw.slice(0, 1000) : "";
+  const ctxImage = typeof ctxImageRaw === "string" ? ctxImageRaw : "";
+  let promptWithCtx = prompt;
+  const parts: string[] = [];
+  if (ctxPostId) parts.push(`ID ${ctxPostId}`);
+  if (ctxTitle) parts.push(`title "${ctxTitle}"`);
+  if (ctxText) parts.push(`content: ${ctxText}`);
+  if (ctxSelection) parts.push(`selection: "${ctxSelection}"`);
+  if (ctxImage) parts.push(`image: ${ctxImage}`);
+  if (parts.length) {
+    promptWithCtx = `Context — ${parts.join(" — ")}` + "\n\n" + prompt;
+  }
+
   const model = (typeof body.model === "string" && body.model.trim()) || "gpt-4o-mini-tts";
   const voice = (typeof body.voice === "string" && body.voice.trim()) || "alloy";
   const speed =
@@ -67,7 +96,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({
         model,
         voice,
-        input: prompt,
+        input: promptWithCtx,
         ...(speed ? { speed } : {}),
       }),
       signal: ctrl.signal,

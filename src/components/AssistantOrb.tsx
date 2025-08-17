@@ -139,6 +139,10 @@ export default function AssistantOrb() {
   const setCtxPostText = (v: React.SetStateAction<string>) => {
     if (mountedRef.current) _setCtxPostText(v);
   };
+  const [ctxImage, _setCtxImage] = useState<string | null>(null);
+  const setCtxImage = (v: React.SetStateAction<string | null>) => {
+    if (mountedRef.current) _setCtxImage(v);
+  };
   const [dragging, _setDragging] = useState(false);
   const setDragging = (v: React.SetStateAction<boolean>) => {
     if (mountedRef.current) _setDragging(v);
@@ -314,17 +318,21 @@ export default function AssistantOrb() {
       return;
     }
 
-    // Ask the model with optional post context (id, title, and visible text)
-    const resp = await askLLM(
-      T,
-      post
-        ? {
-            postId: post.id as unknown as string | number,
-            title: (post as any)?.title,
-            text: ctxPostText || getPostText(post),
-          }
-        : null
-    );
+    // Ask the model with optional context (post, selection, image)
+    const selection =
+      typeof window !== "undefined"
+        ? window.getSelection?.()?.toString().trim().slice(0, 1000) || ""
+        : "";
+    const ctx: any = {};
+    if (post) {
+      ctx.postId = post.id as unknown as string | number;
+      ctx.title = (post as any)?.title;
+      ctx.text = ctxPostText || getPostText(post);
+    }
+    if (selection) ctx.selection = selection;
+    if (ctxImage) ctx.image = ctxImage;
+
+    const resp = await askLLM(T, Object.keys(ctx).length ? ctx : null);
     if (resp.ok) {
       push(resp.message);
     } else {
@@ -344,13 +352,7 @@ export default function AssistantOrb() {
 
       const streamResp = await askLLMVoice(
         T,
-        post
-          ? {
-              postId: post.id as unknown as string | number,
-              title: (post as any)?.title,
-              text: ctxPostText || getPostText(post),
-            }
-          : null
+        Object.keys(ctx).length ? ctx : null
       );
       if (id !== inFlightIdRef.current) return;
       if (streamResp.ok) {
@@ -521,6 +523,10 @@ export default function AssistantOrb() {
         setHover(id);
         if (id) bus.emit?.("feed:select-id", { id });
       }
+      const img = (under as HTMLElement | null)?.closest?.("img");
+      const src = (img as HTMLImageElement | null)?.currentSrc ||
+        (img as HTMLImageElement | null)?.src || null;
+      setCtxImage(prev => (prev === src ? prev : src));
     });
   };
 
@@ -547,6 +553,7 @@ export default function AssistantOrb() {
     }
 
     setHover(null);
+    setCtxImage(null);
     setDragging(false);
     movedRef.current = false;
     suppressClickRef.current = false;
