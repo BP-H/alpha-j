@@ -93,7 +93,9 @@ async function readAudioStream(res: Response): Promise<{
     offset += c.length;
   }
   const type = res.headers.get("content-type") || "audio/mpeg";
-  const blob = new Blob([bytes], { type });
+  // Convert to ArrayBuffer before creating a Blob to satisfy DOM typings
+  const arrayBuffer = bytes.buffer as ArrayBuffer;
+  const blob = new Blob([arrayBuffer], { type });
   const url = URL.createObjectURL(blob);
   return { bytes, url, type };
 }
