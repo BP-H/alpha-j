@@ -46,6 +46,15 @@
 
 .pc-media-wrap{ margin:0; }
 
+.pc-link{
+  display:block;
+  margin:6px 0;
+  color:var(--pc-muted);
+  text-decoration:underline;
+  overflow-wrap:anywhere;
+  word-break:break-all;
+}
+
 .pc-media{
   display:block; width:100%; height:auto; aspect-ratio:4/5;
   object-fit:cover; background:#0f1117; border-radius:8px;

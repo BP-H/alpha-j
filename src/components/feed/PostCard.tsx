@@ -201,6 +201,17 @@ export default function PostCard({ post }: { post: Post }) {
           )}
         </div>
 
+        {post.link && (
+          <a
+            className="pc-link"
+            href={post.link}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {post.link}
+          </a>
+        )}
+
         {pollOpts.length > 0 && (
           <div className="pc-poll">
             {!voted

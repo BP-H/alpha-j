@@ -154,6 +154,16 @@ export default function PostCard({ post }: { post: Post }) {
             <AmbientWorld className="pc-media" />
           )}
         </div>
+        {post.link && (
+          <a
+            className="pc-link"
+            href={post.link}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {post.link}
+          </a>
+        )}
 
         <div className="pc-botbar" role="toolbar" aria-label="Post actions">
           <div className="pc-ava"
