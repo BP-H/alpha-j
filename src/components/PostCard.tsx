@@ -4,16 +4,10 @@ import "./postcard.css";
 import type { Post } from "../types";
 import bus from "../lib/bus";
 import { ensureModelViewer } from "../lib/ensureModelViewer";
+import { EMOJI_LIST } from "../lib/emojis";
 import AmbientWorld from "./AmbientWorld";
 
 const isBlob = (u?: string | null) => !!u && u.startsWith("blob:");
-
-const EMOJI_LIST: string[] = [
-  "🤗","😂","🤣","😅","🙂","😉","😍","😎","🥳","🤯","😡","😱","🤔","🤭","🙄","🥺","🤪","🤫","🤤","😴",
-  "👻","🤖","👽","😈","👋","👍","👎","👏","🙏","👀","💪","🫶","💅","🔥","✨","⚡","💥","❤️","🫠","🫡",
-  "💙","💜","🖤","🤍","❤️‍🔥","❤️‍🩹","💯","💬","🗯️","🎉","🎊","🎁","🏆","🎮","🚀","✈️","🚗","🏠","🫨","🗿",
-  "📱","💡","🎵","📢","📚","📈","✅","❌","❗","❓","‼️","⚠️","🌀","🎬","🍕","🍔","🍎","🍺","⚙️","🧩"
-];
 
 export default function PostCard({ post }: { post: Post }) {
   const [drawer, setDrawer] = useState(false);
