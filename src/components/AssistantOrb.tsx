@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import bus from "../lib/bus";
 import { logError } from "../lib/logger";
 import { askLLM, askLLMVoice } from "../lib/assistant";
+import useSpeech from "../lib/useSpeech";
 import type { AssistantMessage, Post } from "../types";
 import RadialMenu from "./RadialMenu";
 import { HOLD_MS } from "./orbConstants";
@@ -17,43 +18,6 @@ import { EMOJI_LIST } from "../lib/emojis";
  * - Petal drawers for React/Comment/Remix; Chat panel on side
  */
 
-interface SpeechRecognitionResult {
-  [index: number]: { transcript: string };
-  isFinal: boolean;
-}
-
-interface SpeechRecognitionResultList {
-  length: number;
-  [index: number]: SpeechRecognitionResult;
-}
-
-interface SpeechRecognitionEvent {
-  resultIndex: number;
-  results: SpeechRecognitionResultList;
-}
-
-interface SpeechRecognitionErrorEvent {
-  error: string;
-}
-
-type SpeechRecognitionLike = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  onstart?: () => void;
-  onend?: () => void;
-  onerror?: (e: SpeechRecognitionErrorEvent) => void;
-  onresult?: (e: SpeechRecognitionEvent) => void;
-  start?: () => void;
-  stop?: () => void;
-};
-
-type SpeechRecognitionConstructor = new () => SpeechRecognitionLike;
-
-interface WindowWithSpeechRecognition extends Window {
-  webkitSpeechRecognition?: SpeechRecognitionConstructor;
-  SpeechRecognition?: SpeechRecognitionConstructor;
-}
 
 const ORB_SIZE = 76;
 const ORB_MARGIN = 12;
@@ -211,60 +175,41 @@ export default function AssistantOrb() {
   }, []);
 
   // speech
-  const recRef = useRef<SpeechRecognitionLike | null>(null);
-  const restartRef = useRef(false);
-  function ensureRec(): SpeechRecognitionLike | null {
-    if (recRef.current) return recRef.current;
-    const C: SpeechRecognitionConstructor | null =
-      (typeof window !== "undefined" &&
-        ((window as WindowWithSpeechRecognition).webkitSpeechRecognition ||
-          (window as WindowWithSpeechRecognition).SpeechRecognition)) ||
-      null;
-    if (!C) { setToast("Voice not supported"); return null; }
-    let rec: SpeechRecognitionLike;
-    try {
-      rec = new C();
-    } catch (err) {
-      logError(err);
-      setToast("Mic error");
-      return null;
-    }
-    rec.continuous = true; rec.interimResults = true; rec.lang = "en-US";
-    rec.onstart = () => { setMic(true); setToast("Listening…"); };
-    rec.onend = () => {
+  const {
+    start: speechStart,
+    stop: speechStop,
+    supported: speechSupported,
+  } = useSpeech({
+    onResult: async (txt: string) => {
+      setInterim("");
+      await handleCommand(txt);
+    },
+    onInterim: (txt: string) => setInterim(txt),
+    onStart: () => {
+      setMic(true);
+      setToast("Listening…");
+    },
+    onEnd: () => {
       setMic(false);
       setToast("");
-      if (restartRef.current) {
-        try {
-          rec.start?.();
-        } catch (err) {
-          logError(err);
-        }
-      }
-    };
-    rec.onerror = (_e: SpeechRecognitionErrorEvent) => { setMic(false); setToast("Mic error"); };
-    rec.onresult = (e: SpeechRecognitionEvent) => {
-      let temp = ""; const finals: string[] = [];
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i]; const t = r[0]?.transcript || "";
-        r.isFinal ? finals.push(t) : (temp += t);
-      }
-      setInterim(temp.trim());
-      const final = finals.join(" ").trim();
-      if (final) { setInterim(""); handleCommand(final); }
-    };
-    recRef.current = rec;
-    return rec;
-  }
+    },
+    onError: () => {
+      setMic(false);
+      setToast("Mic error");
+    },
+  });
+
   function startListening() {
     if (mic) return;
-    const r = ensureRec(); if (!r) return;
-    restartRef.current = true;
-    try { r.start?.(); } catch (err) { logError(err); setMic(false); setToast("Mic error"); }
+    if (!speechSupported) {
+      setToast("Voice not supported");
+      return;
+    }
+    speechStart();
   }
+
   function stopListening() {
-    restartRef.current = false;
-    try { recRef.current?.stop?.(); } catch (err) { logError(err); }
+    speechStop();
     setMic(false);
     setInterim("");
   }
@@ -681,13 +626,12 @@ export default function AssistantOrb() {
 
   useEffect(() => {
     return () => {
-      try { recRef.current?.stop?.(); } catch {}
-      recRef.current = null; restartRef.current = false;
+      speechStop();
       if (holdTimerRef.current) clearTimeout(holdTimerRef.current);
       if (moveRafRef.current != null) cancelAnimationFrame(moveRafRef.current);
       setHover(null);
     };
-  }, []);
+  }, [speechStop]);
 
   // styles
   const keyframes = `
