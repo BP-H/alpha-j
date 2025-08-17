@@ -121,10 +121,6 @@ export default function AssistantOrb() {
   const setMenuOpen = (v: React.SetStateAction<boolean>) => {
     if (mountedRef.current) _setMenuOpen(v);
   };
-  const [petal, _setPetal] = useState<null | "comment" | "remix" | "share">(null);
-  const setPetal = (v: React.SetStateAction<null | "comment" | "remix" | "share">) => {
-    if (mountedRef.current) _setPetal(v);
-  };
   const [voiceOn, _setVoiceOn] = useState(true);
   const setVoiceOn = (v: React.SetStateAction<boolean>) => {
     if (mountedRef.current) _setVoiceOn(v);
@@ -377,6 +373,32 @@ export default function AssistantOrb() {
     window.setTimeout(() => setToast(""), 900);
   }
 
+  function handleComment() {
+    if (!ctxPost) { setToast("Hover a post first"); return; }
+    const body = window.prompt("Write a comment");
+    if (!body) return;
+    bus.emit?.("post:comment", { id: ctxPost.id, body });
+    setToast("Commented");
+    window.setTimeout(() => setToast(""), 900);
+  }
+
+  function handleRemix() {
+    if (!ctxPost) { setToast("Hover a post first"); return; }
+    bus.emit?.("post:remix", { id: ctxPost.id });
+    setToast("Remixing");
+    window.setTimeout(() => setToast(""), 900);
+  }
+
+  async function handleShare() {
+    if (!ctxPost) { setToast("Hover a post first"); return; }
+    try {
+      const url = `${location.origin}${location.pathname}#post-${ctxPost.id}`;
+      await navigator.clipboard.writeText(url);
+      setToast("Link copied");
+      window.setTimeout(() => setToast(""), 900);
+    } catch {}
+  }
+
   // hover highlight
   function setHover(id: string | null) {
     if (hoverIdRef.current) {
@@ -619,7 +641,6 @@ export default function AssistantOrb() {
       if (e.key === "Escape") {
         setOpen(false);
         setMenuOpen(false);
-        setPetal(null);
         stopListening();
         orbRef.current?.focus();
       }
@@ -731,15 +752,19 @@ export default function AssistantOrb() {
       setMenuOpen(true);
     } else if (k === "c") {
       e.preventDefault();
-      setPetal("comment"); setMenuOpen(false);
+      handleComment();
+      setMenuOpen(false);
     } else if (k === "m") {
       e.preventDefault();
-      setPetal("remix"); setMenuOpen(false);
+      handleRemix();
+      setMenuOpen(false);
     } else if (k === "s") {
       e.preventDefault();
-      setPetal("share"); setMenuOpen(false);
+      handleShare();
+      setMenuOpen(false);
     } else if (e.key === "Escape") {
-      setMenuOpen(false); setPetal(null); stopListening();
+      setMenuOpen(false);
+      stopListening();
       orbRef.current?.focus();
     }
   }
@@ -820,7 +845,6 @@ export default function AssistantOrb() {
             style={overlayStyle}
             onClick={() => {
               setMenuOpen(false);
-              setPetal(null);
               orbRef.current?.focus();
             }}
           />
@@ -832,7 +856,6 @@ export default function AssistantOrb() {
             }}
             onChat={() => {
               setOpen(v => !v);
-              setPetal(null);
               setMenuOpen(false);
               requestAnimationFrame(updateAnchors);
             }}
@@ -841,15 +864,15 @@ export default function AssistantOrb() {
               setMenuOpen(false);
             }}
             onComment={() => {
-              setPetal("comment");
+              handleComment();
               setMenuOpen(false);
             }}
             onRemix={() => {
-              setPetal("remix");
+              handleRemix();
               setMenuOpen(false);
             }}
             onShare={() => {
-              setPetal("share");
+              handleShare();
               setMenuOpen(false);
             }}
             onProfile={() => {
@@ -978,61 +1001,6 @@ export default function AssistantOrb() {
         </div>
       )}
 
-      {/* Petal drawers */}
-      {petal && (
-        <div className="assistant-petal">
-          <div className="ap-head">
-            <div className="ap-dot" />
-            <div className="ap-title">{petal === "comment" ? "Comment" : petal === "remix" ? "Remix" : "Share"}</div>
-            <div className="ap-sub">{ctxPost ? `Post ${ctxPost.id}` : "Hover a post to target"}</div>
-            <button className="ap-btn" onClick={() => setPetal(null)}>Close</button>
-          </div>
-
-          {petal === "comment" && (
-            <form
-              className="ap-form"
-              onSubmit={(e) => {
-                e.preventDefault();
-                const input = (e.currentTarget.elements.namedItem("cmt") as HTMLInputElement);
-                const t = input.value.trim();
-                if (!t || !ctxPost) return;
-                bus.emit?.("post:comment", { id: ctxPost.id, body: t });
-                input.value = "";
-                setPetal(null);
-              }}
-            >
-              <input className="ap-input" name="cmt" placeholder="Write a comment…" />
-              <button className="ap-send" type="submit">Send</button>
-            </form>
-          )}
-
-          {petal === "remix" && (
-            <div className="ap-body">
-              <div className="ap-hint">Make a quick remix of the current post. Uses defaults.</div>
-              <button className="ap-btn" onClick={() => { if (ctxPost) { bus.emit?.("post:remix", { id: ctxPost.id }); setPetal(null); } }}>
-                Remix 🎬
-              </button>
-            </div>
-          )}
-
-          {petal === "share" && (
-            <div className="ap-body">
-              <div className="ap-hint">Copy link to this post.</div>
-              <button
-                className="ap-btn"
-                onClick={async () => {
-                  if (!ctxPost) return;
-                  const url = `${location.origin}${location.pathname}#post-${ctxPost.id}`;
-                  try { await navigator.clipboard.writeText(url); setToast("Link copied"); setTimeout(() => setToast(""), 900); } catch {}
-                  setPetal(null);
-                }}
-              >
-                Copy Link ↗️
-              </button>
-            </div>
-          )}
-        </div>
-      )}
     </>
   );
 }

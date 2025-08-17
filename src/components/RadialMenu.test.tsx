@@ -86,7 +86,9 @@ describe("RadialMenu keyboard navigation", () => {
     const menus = getAllByRole("menu");
     const menu = menus[menus.length - 1];
 
-    // cycle through the four root items to focus the close control
+    // cycle through the six root items to focus the close control
+    fireEvent.keyDown(menu, { key: "ArrowRight" });
+    fireEvent.keyDown(menu, { key: "ArrowRight" });
     fireEvent.keyDown(menu, { key: "ArrowRight" });
     fireEvent.keyDown(menu, { key: "ArrowRight" });
     fireEvent.keyDown(menu, { key: "ArrowRight" });
