@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import bus from "../lib/bus";
 import { logError } from "../lib/logger";
-import { askLLMVoice, buildCtx } from "../lib/assistant";
+import { askLLMVoice, buildAssistantContext } from "../lib/assistant";
 import useSpeech from "../lib/useSpeech";
 import type { AssistantMessage, Post } from "../types";
 import RadialMenu from "./RadialMenu";
@@ -238,7 +238,7 @@ export default function AssistantOrb() {
 
   async function handleCommand(text: string) {
     const post = ctxPost || null;
-    const ctx = buildCtx(post, ctxPostText);
+    const ctx = buildAssistantContext(post, ctxPostText);
 
     push({ id: uuid(), role: "user", text, ts: Date.now(), postId: post?.id ?? null });
 
