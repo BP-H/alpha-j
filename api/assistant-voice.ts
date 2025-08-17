@@ -68,14 +68,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctxSelection =
     typeof ctx.selection === "string" ? ctx.selection.slice(0, 1000) : "";
   const ctxImages = Array.isArray(ctx.images)
-    ? ctx.images.filter((u): u is string => typeof u === "string").slice(0, 5)
+    ? ctx.images
+        .filter((u): u is string => typeof u === "string")
+        .filter(
+          (u) =>
+            /^https?:\/\//i.test(u) ||
+            /^data:image\/[a-zA-Z]+;base64,/i.test(u),
+        )
+        .slice(0, 5)
     : [];
 
-  const messages: Array<{ role: "system" | "user"; content: string }> = [
+  const input: Array<{
+    role: "system" | "user";
+    content: Array<
+      | { type: "input_text"; text: string }
+      | { type: "input_image"; image_url: string }
+    >;
+  }> = [
     {
       role: "system",
-      content:
-        "You are the SuperNOVA assistant orb. Reply in one or two concise sentences. No markdown.",
+      content: [
+        {
+          type: "input_text",
+          text: "You are the SuperNOVA assistant orb. Reply in one or two concise sentences. No markdown.",
+        },
+      ],
     },
   ];
 
@@ -84,32 +101,43 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     if (ctxPostId) parts.push(`ID ${ctxPostId}`);
     if (ctxTitle) parts.push(`title \"${ctxTitle}\"`);
     if (ctxText) parts.push(`content: ${ctxText}`);
-    messages.push({
+    input.push({
       role: "system",
-      content: `Context from hovered post — ${parts.join(" — ")}`,
+      content: [
+        {
+          type: "input_text",
+          text: `Context from hovered post — ${parts.join(" — ")}`,
+        },
+      ],
     });
   }
 
   if (ctxSelection) {
-    messages.push({ role: "system", content: `User selected text: ${ctxSelection}` });
+    input.push({
+      role: "user",
+      content: [
+        { type: "input_text", text: `User selected text: ${ctxSelection}` },
+      ],
+    });
   }
+
+  input.push({
+    role: "user",
+    content: [{ type: "input_text", text: prompt }],
+  });
 
   if (ctxImages.length) {
-    messages.push({ role: "system", content: `Image URLs: ${ctxImages.join(", ")}` });
+    input.push({
+      role: "user",
+      content: ctxImages.map((url) => ({ type: "input_image", image_url: url })),
+    });
   }
-
-  messages.push({ role: "user", content: prompt });
 
   // Give the model enough time to respond
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 45_000);
 
   try {
-    const input = messages.map((m) => ({
-      role: m.role,
-      content: [{ type: "text", text: m.content }],
-    }));
-
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
