@@ -34,7 +34,7 @@ interface PlayersJson {
 export async function assistantReply(
   prompt: string,
 ): Promise<AssistantReplyResult> {
-  const apiKey = getKey("openai") || getKey("sn2177.apiKey");
+  const apiKey = getKey("openai");
   if (!apiKey) warnOnce("Missing OpenAI API key");
 
   const payload: AssistantReplyPayload = { prompt };

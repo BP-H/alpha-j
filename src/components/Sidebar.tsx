@@ -28,15 +28,30 @@ function useLocal<T>(key: string, init: T) {
   return [v, setV] as const;
 }
 
-function useSecure(key: string) {
-  const [v, setV] = useState(() =>
-    typeof window === "undefined" ? "" : getSecureKey(key),
-  );
+function useSecure(key: string, legacy?: string) {
+  const [v, setV] = useState(() => {
+    if (typeof window === "undefined") return "";
+    const current = getSecureKey(key);
+    if (current) return current;
+    return legacy ? getSecureKey(legacy) : "";
+  });
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !legacy) return;
+    const legacyVal = getSecureKey(legacy);
+    if (legacyVal) {
+      setSecureKey(key, legacyVal);
+      removeSecureKey(legacy);
+      setV(legacyVal);
+    }
+  }, [key, legacy]);
+
   const update = (val: string) => {
     setV(val);
     if (typeof window === "undefined") return;
     if (val) setSecureKey(key, val);
     else removeSecureKey(key);
+    if (legacy) removeSecureKey(legacy);
   };
   return [v, update] as const;
 }
@@ -86,12 +101,16 @@ export default function Sidebar() {
     document.documentElement.style.setProperty("--accent", accent);
   }, [accent]);
 
-  const [openaiKey, setOpenaiKey] = useSecure("openai");
+  const [openaiKey, setOpenaiKey] = useSecure("openai", "sn2177.apiKey");
   const [anthropicKey, setAnthropicKey] = useSecure("anthropic");
   const [perplexityKey, setPerplexityKey] = useSecure("perplexity");
+  const [unsplashKey, setUnsplashKey] = useSecure("unsplash");
+  const [pexelsKey, setPexelsKey] = useSecure("pexels");
   const [openaiDraft, setOpenaiDraft] = useState(openaiKey);
   const [anthropicDraft, setAnthropicDraft] = useState(anthropicKey);
   const [perplexityDraft, setPerplexityDraft] = useState(perplexityKey);
+  const [unsplashDraft, setUnsplashDraft] = useState(unsplashKey);
+  const [pexelsDraft, setPexelsDraft] = useState(pexelsKey);
   const [openaiModel, setOpenaiModel] = useLocal(
     "sn.model.openai",
     "gpt-4o-mini",
@@ -132,6 +151,28 @@ export default function Sidebar() {
       onClear: () => {
         setPerplexityDraft("");
         setPerplexityKey("");
+      },
+    },
+    {
+      id: "unsplash",
+      label: "Unsplash",
+      value: unsplashDraft,
+      onChange: setUnsplashDraft,
+      onSave: () => setUnsplashKey(unsplashDraft),
+      onClear: () => {
+        setUnsplashDraft("");
+        setUnsplashKey("");
+      },
+    },
+    {
+      id: "pexels",
+      label: "Pexels",
+      value: pexelsDraft,
+      onChange: setPexelsDraft,
+      onSave: () => setPexelsKey(pexelsDraft),
+      onClear: () => {
+        setPexelsDraft("");
+        setPexelsKey("");
       },
     },
   ];

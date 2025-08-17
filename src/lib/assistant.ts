@@ -119,7 +119,7 @@ export async function askLLMVoice(
   prompt: string,
   ctx?: AssistantCtx,
 ): Promise<AskVoiceResult> {
-  const apiKey = getKey("openai") || getKey("sn2177.apiKey");
+  const apiKey = getKey("openai");
   if (!apiKey) {
     warnOnce("Missing OpenAI API key");
     return { ok: false, error: "missing api key" };
