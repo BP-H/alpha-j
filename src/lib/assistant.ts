@@ -23,7 +23,7 @@ export type AskResult =
   | { ok: false; error: string };
 
 export type AskVoiceResult =
-  | { ok: true; audio: Uint8Array; type: string; text?: string }
+  | { ok: true; audio: ArrayBuffer; type: string; text?: string }
   | { ok: false; error: string };
 
 const warnOnce = (() => {
@@ -179,7 +179,7 @@ export async function askLLMVoice(
     const bytes = new Uint8Array(len);
     for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
 
-    return { ok: true, audio: bytes, type, text: data?.text };
+    return { ok: true, audio: bytes.buffer, type, text: data?.text };
   } catch (e: any) {
     clearTimeout(timeout);
     const rawMsg = e?.message || "request failed";
