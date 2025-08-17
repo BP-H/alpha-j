@@ -200,7 +200,6 @@ export default function AssistantOrb() {
     supported: speechSupported,
   } = useSpeech({
     onResult: async (txt: string) => {
-      setInterim("");
       await handleCommand(txt);
     },
     onInterim: (txt: string) => setInterim(txt),
@@ -209,6 +208,7 @@ export default function AssistantOrb() {
       setToast("Listening…");
     },
     onEnd: () => {
+      setInterim("");
       setMic(false);
       setToast("");
     },
@@ -237,12 +237,14 @@ export default function AssistantOrb() {
   const push = (m: AssistantMessage) => setMsgs(s => [...s, m]);
 
   async function handleCommand(text: string) {
+    const T = text.trim();
+    if (!T) return;
+
     const post = ctxPost || null;
     const ctx = buildAssistantContext(post, ctxPostText);
 
-    push({ id: uuid(), role: "user", text, ts: Date.now(), postId: post?.id ?? null });
+    push({ id: uuid(), role: "user", text: T, ts: Date.now(), postId: post?.id ?? null });
 
-    const T = text.trim();
     const lower = T.toLowerCase();
 
     if (lower.startsWith("/react")) {
