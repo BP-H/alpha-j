@@ -107,7 +107,11 @@ function PollEditor({ question, options, setQuestion, setOptions, onClose }: Pol
   );
 }
 
-export default function PostComposer() {
+type PostComposerProps = {
+  onClose: () => void;
+};
+
+export default function PostComposer({ onClose }: PostComposerProps) {
   const addPost = useFeedStore((s) => s.addPost);
 
   const [text, setText] = useState("");
@@ -431,6 +435,9 @@ export default function PostComposer() {
           </button>
           <button className="composer__btn" onClick={handlePost}>
             Post
+          </button>
+          <button type="button" className="composer__text-btn" onClick={onClose}>
+            Close
           </button>
         </div>
       </div>
