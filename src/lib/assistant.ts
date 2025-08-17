@@ -15,6 +15,7 @@ export type AskPayload = {
   prompt: string;
   ctx?: AssistantCtx;
   model?: string;
+  apiKey?: string;
 };
 
 export type AskResult =
@@ -75,9 +76,13 @@ export async function askLLM(
     }
   }
 
+  const apiKey = getKey("openai");
+  if (!apiKey) warnOnce("Missing OpenAI API key");
+
   const payload: AskPayload = { prompt: input };
   if (ctx) payload.ctx = ctx;
   if (model) payload.model = model;
+  if (apiKey) payload.apiKey = apiKey;
 
   const ac = new AbortController();
   const timeout = setTimeout(() => ac.abort(), 15_000);
