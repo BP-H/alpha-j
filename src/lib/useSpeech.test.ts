@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
-import useSpeechRecognition from "./useSpeech";
+import useSpeech from "./useSpeech";
 import { logError } from "./logger";
 
 vi.mock("./logger", () => ({
   logError: vi.fn(),
 }));
 
-describe("useSpeechRecognition", () => {
+describe("useSpeech", () => {
   afterEach(() => {
     delete (globalThis as any).SpeechRecognition;
   });
@@ -28,7 +28,7 @@ describe("useSpeechRecognition", () => {
     }
     (globalThis as any).SpeechRecognition = MockSpeechRecognition as any;
 
-    const { result } = renderHook(() => useSpeechRecognition(() => {}));
+    const { result } = renderHook(() => useSpeech({ onResult: () => {} }));
 
     const evt = new Error("fail");
     act(() => {
