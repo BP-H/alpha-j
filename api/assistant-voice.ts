@@ -141,7 +141,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       },
       body: JSON.stringify({
         model,
-        modalities: ["text", "audio"],
         input,
         audio: { voice, format: "mp3", ...(speed ? { speed } : {}) },
         temperature: 0.3,
