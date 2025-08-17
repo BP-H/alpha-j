@@ -1,5 +1,26 @@
 // src/lib/api.ts
-export async function assistantReply(prompt: string): Promise<{ ok: boolean; text?: string; error?: string }> {
+
+interface AssistantReplyJson {
+  ok: boolean;
+  text?: string;
+  error?: string;
+}
+
+export interface Player {
+  id: string;
+  name: string;
+  color: string;
+}
+
+interface PlayersJson {
+  ok: boolean;
+  players?: Player[];
+  error?: string;
+}
+
+export async function assistantReply(
+  prompt: string,
+): Promise<{ ok: boolean; text?: string; error?: string }> {
   let apiKey = "";
   if (typeof window !== "undefined") {
     try {
@@ -12,35 +33,53 @@ export async function assistantReply(prompt: string): Promise<{ ok: boolean; tex
     const r = await fetch("/api/assistant-reply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey, prompt }), // <— 'prompt' shape
+      body: JSON.stringify({ apiKey, prompt }), // — 'prompt' shape
     });
-    let j: any;
+    if (!r.ok) {
+      return { ok: false, error: `HTTP ${r.status}` };
+    }
+    let data: AssistantReplyJson;
     try {
-      j = await r.json();
+      data = (await r.json()) as AssistantReplyJson;
     } catch (e: unknown) {
       console.error("Failed to parse /api/assistant-reply response", e);
       return { ok: false, error: "Invalid JSON response" };
     }
-    return j?.ok ? { ok: true, text: j.text || "" } : { ok: false, error: j?.error || "Failed" };
+    if (data.ok && typeof data.text === "string") {
+      return { ok: true, text: data.text };
+    }
+    return { ok: false, error: typeof data.error === "string" ? data.error : "Failed" };
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Network error";
     return { ok: false, error: message };
   }
 }
 
-export async function fetchPlayers(): Promise<{ id: string; name: string; color: string }[]> {
+export async function fetchPlayers(): Promise<Player[]> {
   try {
     const r = await fetch("/api/players");
-    let j: any;
+    if (!r.ok) {
+      return [];
+    }
+    let data: PlayersJson;
     try {
-      j = await r.json();
+      data = (await r.json()) as PlayersJson;
     } catch (e: unknown) {
       console.error("Failed to parse /api/players response", e);
       return [];
     }
-    return j?.ok ? (j.players || []) : [];
+    if (data.ok && Array.isArray(data.players)) {
+      return data.players.filter(
+        (p): p is Player =>
+          typeof p.id === "string" &&
+          typeof p.name === "string" &&
+          typeof p.color === "string",
+      );
+    }
+    return [];
   } catch (e: unknown) {
     console.error("Failed to fetch players", e);
     return [];
   }
 }
+
