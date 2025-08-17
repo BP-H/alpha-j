@@ -22,7 +22,7 @@ interface PlayersJson {
 export async function assistantReply(
   prompt: string,
 ): Promise<{ ok: boolean; text?: string; error?: string }> {
-  const apiKey = getKey("sn2177.apiKey");
+  const apiKey = getKey("openai");
   try {
     const r = await fetch("/api/assistant-reply", {
       method: "POST",

@@ -28,16 +28,67 @@ function useLocal<T>(key: string, init: T) {
   return [v, setV] as const;
 }
 
-function useSecure(key: string) {
-  const [v, setV] = useState(() =>
-    typeof window === "undefined" ? "" : getSecureKey(key),
-  );
+function useSecure(key: string, aliases: string[] = []) {
+  const [v, setV] = useState(() => {
+    if (typeof window === "undefined") return "";
+
+    let value = getSecureKey(key);
+    if (value) return value;
+
+    for (const alias of aliases) {
+      value = getSecureKey(alias);
+      if (value) {
+        setSecureKey(key, value);
+        removeSecureKey(alias);
+        return value;
+      }
+    }
+
+    try {
+      const ls = window.localStorage;
+      let raw = ls.getItem(key);
+      if (raw) {
+        setSecureKey(key, raw);
+        ls.removeItem(key);
+        return raw;
+      }
+      for (const alias of aliases) {
+        raw = ls.getItem(alias);
+        if (raw) {
+          setSecureKey(key, raw);
+          ls.removeItem(alias);
+          return raw;
+        }
+      }
+    } catch {
+      // ignore
+    }
+
+    return "";
+  });
+
   const update = (val: string) => {
     setV(val);
     if (typeof window === "undefined") return;
+
     if (val) setSecureKey(key, val);
     else removeSecureKey(key);
+
+    for (const alias of aliases) {
+      removeSecureKey(alias);
+      try {
+        window.localStorage.removeItem(alias);
+      } catch {
+        // ignore
+      }
+    }
+    try {
+      window.localStorage.removeItem(key);
+    } catch {
+      // ignore
+    }
   };
+
   return [v, update] as const;
 }
 
@@ -86,7 +137,7 @@ export default function Sidebar() {
     document.documentElement.style.setProperty("--accent", accent);
   }, [accent]);
 
-  const [openaiKey, setOpenaiKey] = useSecure("openai");
+  const [openaiKey, setOpenaiKey] = useSecure("openai", ["sn2177.apiKey"]);
   const [anthropicKey, setAnthropicKey] = useSecure("anthropic");
   const [perplexityKey, setPerplexityKey] = useSecure("perplexity");
   const [openaiDraft, setOpenaiDraft] = useState(openaiKey);

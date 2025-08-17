@@ -88,7 +88,7 @@ export async function askLLMVoice(
   prompt: string,
   ctx?: AssistantCtx,
 ): Promise<ReadableStream<Uint8Array> | null> {
-  const apiKey = getKey("sn2177.apiKey");
+  const apiKey = getKey("openai");
 
   try {
     const payload: Record<string, unknown> = { apiKey, prompt };
