@@ -119,16 +119,36 @@ export default function Sidebar() {
   const toggleShow = (k: string) =>
     setShowKeys((s) => ({ ...s, [k]: !s[k] }));
 
+  async function saveServerKey(key: string) {
+    try {
+      await fetch("/api/openai-key", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ apiKey: key }),
+      });
+    } catch {}
+  }
+
+  async function clearServerKey() {
+    try {
+      await fetch("/api/openai-key", { method: "DELETE" });
+    } catch {}
+  }
+
   const keyFields = [
     {
       id: "openai",
       label: "OpenAI",
       value: openaiDraft,
       onChange: setOpenaiDraft,
-      onSave: () => setOpenaiKey(openaiDraft),
+      onSave: () => {
+        setOpenaiKey(openaiDraft);
+        saveServerKey(openaiDraft);
+      },
       onClear: () => {
         setOpenaiDraft("");
         setOpenaiKey("");
+        clearServerKey();
       },
     },
     {

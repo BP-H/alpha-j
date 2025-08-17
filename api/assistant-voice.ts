@@ -1,6 +1,7 @@
 // /api/assistant-voice.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { Readable } from "node:stream";
+import { getStoredOpenAIKey } from "./openai-key";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -8,7 +9,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   }
 
   const body = (req.body ?? {}) as {
-    apiKey?: string;
     prompt?: string;
     q?: string;
     model?: string;  // e.g. "gpt-4o-mini-tts"
@@ -22,14 +22,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : "";
 
   const apiKey =
-    (headerKey || (typeof body.apiKey === "string" ? body.apiKey.trim() : "")) ||
-    (process.env.OPENAI_API_KEY || "");
+    (headerKey || getStoredOpenAIKey(req)) || (process.env.OPENAI_API_KEY || "");
 
   if (!apiKey) {
     return res.status(401).json({
       ok: false,
-      error:
-        "Unauthorized: missing OpenAI API key. Provide one in the request or set OPENAI_API_KEY on the server.",
+      error: "Missing OpenAI API key. Set one in settings or on the server.",
     });
   }
 

@@ -1,7 +1,6 @@
 // src/lib/assistant.ts
 import type { AssistantMessage, RemixSpec } from "../types";
 import bus from "./bus";
-import { getKey } from "./secureStore";
 
 type AssistantCtx = {
   postId?: string | number;
@@ -123,16 +122,7 @@ export async function askLLMVoice(
   prompt: string,
   ctx?: AssistantCtx,
 ): Promise<AskVoiceResult> {
-  const apiKey = getKey("openai");
-  if (!apiKey) {
-    warnOnce("Missing OpenAI API key");
-    return { ok: false, error: "missing api key" };
-  }
-
-  const payload: { apiKey: string; prompt: string; ctx?: AssistantCtx } = {
-    apiKey,
-    prompt,
-  };
+  const payload: { prompt: string; ctx?: AssistantCtx } = { prompt };
   if (ctx) payload.ctx = ctx;
 
   const ac = new AbortController();
@@ -148,10 +138,14 @@ export async function askLLMVoice(
 
     if (!res.ok) {
       const msg = await parseError(res);
-      const toast = `Assistant voice request failed: ${msg}`;
+      const toast =
+        res.status === 401
+          ? "Missing OpenAI API key. Add one in settings."
+          : `Assistant voice request failed: ${msg}`;
       bus.emit?.("toast", { message: toast });
       console.error("assistant voice request failed:", msg);
       bus.emit?.("notify", toast);
+      if (res.status === 401) warnOnce("Missing OpenAI API key");
       return { ok: false, error: msg };
     }
 
