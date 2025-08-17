@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { askLLM } from "./assistant";
+import type { AskResult } from "./assistant";
 
 describe("askLLM id generation", () => {
   const originalFetch = global.fetch;
@@ -31,11 +32,11 @@ describe("askLLM id generation", () => {
       configurable: true,
     });
 
-    const msg = await askLLM("hello");
+    const msg: AskResult = await askLLM("hello");
     expect(msg.ok).toBe(true);
-    if (msg.ok) {
-      expect(msg.message.id).toBe(uuid);
-    }
+    if (!msg.ok) throw new Error(msg.error);
+    // now safe to access msg.message
+    expect(msg.message.id).toBe(uuid);
   });
 
   it("falls back to Math.random when crypto.randomUUID is unavailable", async () => {
@@ -49,10 +50,10 @@ describe("askLLM id generation", () => {
     delete global.crypto;
     Math.random = () => 0.123456789;
 
-    const msg = await askLLM("hello");
+    const msg: AskResult = await askLLM("hello");
     expect(msg.ok).toBe(true);
-    if (msg.ok) {
-      expect(msg.message.id).toBe("4fzzzxjylrx");
-    }
+    if (!msg.ok) throw new Error(msg.error);
+    // now safe to access msg.message
+    expect(msg.message.id).toBe("4fzzzxjylrx");
   });
 });
