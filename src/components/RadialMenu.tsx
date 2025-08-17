@@ -265,6 +265,7 @@ export default function RadialMenu(props: RadialMenuProps) {
     const y = radius * Math.sin(rad) - 20;
     return (
       <motion.button
+        type="button"
         key={item.id}
         id={`assistant-menu-item-${item.id}`}
         role="menuitem"
@@ -346,6 +347,7 @@ export default function RadialMenu(props: RadialMenuProps) {
 
       <AnimatePresence mode="wait">
         <motion.button
+          type="button"
           key={subMenu === null ? "close" : "back"}
           id={
             subMenu === null
@@ -461,6 +463,7 @@ function SimpleRadialMenu({ center, items, onClose }: SimpleProps) {
         return (
           <React.Fragment key={item.id}>
             <button
+              type="button"
               className="rbtn"
               onClick={item.action}
               role="menuitem"
