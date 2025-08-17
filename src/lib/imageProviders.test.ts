@@ -3,11 +3,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 // Tests dynamically import modules so that module-level state like warnedProviders
 // is reset between cases and environment variables are applied before import.
 describe("fetchImages", () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.resetModules();
     vi.restoreAllMocks();
     delete process.env.VITE_UNSPLASH_KEY;
     delete process.env.VITE_PEXELS_KEY;
+    if (typeof localStorage !== "undefined") localStorage.clear();
+    const secure = await import("./secureStore");
+    secure.clearAll();
   });
 
   it("uses VITE_UNSPLASH_KEY before secureStore", async () => {

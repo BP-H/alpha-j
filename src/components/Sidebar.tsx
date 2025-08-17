@@ -111,6 +111,14 @@ export default function Sidebar() {
   const [perplexityDraft, setPerplexityDraft] = useState(perplexityKey);
   const [unsplashDraft, setUnsplashDraft] = useState(unsplashKey);
   const [pexelsDraft, setPexelsDraft] = useState(pexelsKey);
+
+  useEffect(() => {
+    setOpenaiDraft(openaiKey);
+    setAnthropicDraft(anthropicKey);
+    setPerplexityDraft(perplexityKey);
+    setUnsplashDraft(unsplashKey);
+    setPexelsDraft(pexelsKey);
+  }, [openaiKey, anthropicKey, perplexityKey, unsplashKey, pexelsKey]);
   const [openaiModel, setOpenaiModel] = useLocal(
     "sn.model.openai",
     "gpt-4o-mini",
@@ -126,7 +134,7 @@ export default function Sidebar() {
       value: openaiDraft,
       onChange: setOpenaiDraft,
       onSave: () => setOpenaiKey(openaiDraft),
-      onClear: () => {
+      onRemove: () => {
         setOpenaiDraft("");
         setOpenaiKey("");
       },
@@ -137,7 +145,7 @@ export default function Sidebar() {
       value: anthropicDraft,
       onChange: setAnthropicDraft,
       onSave: () => setAnthropicKey(anthropicDraft),
-      onClear: () => {
+      onRemove: () => {
         setAnthropicDraft("");
         setAnthropicKey("");
       },
@@ -148,7 +156,7 @@ export default function Sidebar() {
       value: perplexityDraft,
       onChange: setPerplexityDraft,
       onSave: () => setPerplexityKey(perplexityDraft),
-      onClear: () => {
+      onRemove: () => {
         setPerplexityDraft("");
         setPerplexityKey("");
       },
@@ -159,7 +167,7 @@ export default function Sidebar() {
       value: unsplashDraft,
       onChange: setUnsplashDraft,
       onSave: () => setUnsplashKey(unsplashDraft),
-      onClear: () => {
+      onRemove: () => {
         setUnsplashDraft("");
         setUnsplashKey("");
       },
@@ -170,7 +178,7 @@ export default function Sidebar() {
       value: pexelsDraft,
       onChange: setPexelsDraft,
       onSave: () => setPexelsKey(pexelsDraft),
-      onClear: () => {
+      onRemove: () => {
         setPexelsDraft("");
         setPexelsKey("");
       },
@@ -373,7 +381,7 @@ export default function Sidebar() {
             <header>API Keys</header>
             <div className="keys">
               {keyFields.map(
-                ({ id, label, value, onChange, onSave, onClear }) => (
+                ({ id, label, value, onChange, onSave, onRemove }) => (
                   <div key={id} className="key-field">
                     <label className="label" htmlFor={`key-${id}`}>
                       {label}
@@ -396,8 +404,8 @@ export default function Sidebar() {
                       <button className="key-toggle" onClick={onSave} type="button">
                         Save
                       </button>
-                      <button className="key-toggle" onClick={onClear} type="button">
-                        Clear
+                      <button className="key-toggle" onClick={onRemove} type="button">
+                        Remove
                       </button>
                     </div>
                   </div>
