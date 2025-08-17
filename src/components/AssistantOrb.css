@@ -1,5 +1,6 @@
 
 :root {
+  --orb-size: clamp(60px, 10vw, 76px);
   --orb-bg: radial-gradient(
     120% 120% at 30% 30%,
     #fff,
@@ -24,6 +25,7 @@
     0 0 30px color-mix(in srgb, var(--orb-color) 30%, transparent),
     var(--orb-shadow), 0 0 0 8px var(--orb-ring);
   animation: orbPulse 3s ease-in-out infinite;
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
   backdrop-filter: blur(14px) saturate(140%);
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
   touch-action: none;
@@ -152,5 +154,33 @@
   bottom: calc(100% + 4px);
   top: auto;
   transform: none;
+}
+
+@media (max-width: 480px) {
+  .assistant-orb__toast {
+    font-size: clamp(10px, 2.5vw, 12px);
+    padding: 4px 6px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .assistant-orb,
+  .assistant-orb__core::before,
+  .assistant-orb__core::after,
+  .assistant-orb.mic .assistant-orb__ring {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+@media (prefers-contrast: more) {
+  .assistant-orb {
+    box-shadow:
+      0 0 0 2px var(--orb-ring),
+      0 0 20px color-mix(in srgb, var(--orb-color) 80%, transparent),
+      var(--orb-shadow), 0 0 0 8px var(--orb-ring);
+    -webkit-backdrop-filter: blur(12px) saturate(160%);
+    backdrop-filter: blur(12px) saturate(160%);
+  }
 }
 
