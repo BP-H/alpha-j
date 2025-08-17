@@ -8,6 +8,7 @@ import {
 } from "../lib/superUser";
 import type { Post } from "../types";
 import { ensureModelViewer } from "../lib/ensureModelViewer";
+import bus from "../lib/bus";
 
 type PollEditorProps = {
   question: string;
@@ -44,7 +45,7 @@ function PollEditor({ question, options, setQuestion, setOptions, onClose }: Pol
     const q = question.trim();
     const opts = options.map((o) => o.trim()).filter(Boolean);
     if (!q || opts.length < 2) {
-      alert("Please enter a question and at least two options");
+      bus.emit("toast", "Please enter a question and at least two options");
       return;
     }
     onClose();
@@ -237,7 +238,7 @@ export default function PostComposer({ onClose }: PostComposerProps) {
   async function handlePost() {
     setSuperUserKey(key);
     if (!isSuperUser()) {
-      alert("Invalid super user key");
+      bus.emit("toast", "Invalid super user key");
       return;
     }
     const hasText = text.trim().length > 0;

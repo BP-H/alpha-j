@@ -28,10 +28,19 @@ function useLocal<T>(key: string, init: T) {
   return [v, setV] as const;
 }
 
-function useSecure(key: string) {
-  const [v, setV] = useState(() =>
-    typeof window === "undefined" ? "" : getSecureKey(key),
-  );
+function useSecure(key: string, legacy?: string) {
+  const [v, setV] = useState(() => {
+    if (typeof window === "undefined") return "";
+    let val = getSecureKey(key);
+    if (!val && legacy) {
+      val = getSecureKey(legacy);
+      if (val) {
+        setSecureKey(key, val);
+        removeSecureKey(legacy);
+      }
+    }
+    return val || "";
+  });
   const update = (val: string) => {
     setV(val);
     if (typeof window === "undefined") return;
@@ -55,16 +64,16 @@ export default function Sidebar() {
     };
   }, [setOpen]);
 
-  // Profile info and settings...
+  // Profile info and settings
   const [name, setName] = useLocal("sn.profile.name", "Your Name");
   const [handle, setHandle] = useLocal("sn.profile.handle", "@you");
   const [bio, setBio] = useLocal(
     "sn.profile.bio",
-    "I bend worlds with orbs and postcards."
+    "I bend worlds with orbs and postcards.",
   );
   const [avatar, setAvatar] = useLocal("sn.profile.avatar", "/avatar.jpg");
 
-  // Trigger the AvatarPortal splash whenever the avatar changes
+  // Trigger avatar splash whenever avatar changes
   const avatarChanged = useRef(false);
   useEffect(() => {
     if (avatarChanged.current) {
@@ -78,7 +87,7 @@ export default function Sidebar() {
   const [accent, setAccent] = useLocal("sn.accent", "#7c83ff");
   const [worldMode, setWorldMode] = useLocal<"orbs" | "matrix">(
     "sn.world.mode",
-    "orbs"
+    "orbs",
   );
   const [orbCount, setOrbCount] = useLocal("sn.world.count", 64);
 
@@ -86,12 +95,18 @@ export default function Sidebar() {
     document.documentElement.style.setProperty("--accent", accent);
   }, [accent]);
 
-  const [openaiKey, setOpenaiKey] = useSecure("openai");
+  // API keys
+  const [openaiKey, setOpenaiKey] = useSecure("openai", "sn2177.apiKey");
   const [anthropicKey, setAnthropicKey] = useSecure("anthropic");
   const [perplexityKey, setPerplexityKey] = useSecure("perplexity");
+  const [unsplashKey, setUnsplashKey] = useSecure("unsplash");
+  const [pexelsKey, setPexelsKey] = useSecure("pexels");
+
   const [openaiDraft, setOpenaiDraft] = useState(openaiKey);
   const [anthropicDraft, setAnthropicDraft] = useState(anthropicKey);
   const [perplexityDraft, setPerplexityDraft] = useState(perplexityKey);
+  const [unsplashDraft, setUnsplashDraft] = useState(unsplashKey);
+  const [pexelsDraft, setPexelsDraft] = useState(pexelsKey);
   const [openaiModel, setOpenaiModel] = useLocal(
     "sn.model.openai",
     "gpt-4o-mini",
@@ -132,6 +147,28 @@ export default function Sidebar() {
       onClear: () => {
         setPerplexityDraft("");
         setPerplexityKey("");
+      },
+    },
+    {
+      id: "unsplash",
+      label: "Unsplash",
+      value: unsplashDraft,
+      onChange: setUnsplashDraft,
+      onSave: () => setUnsplashKey(unsplashDraft),
+      onClear: () => {
+        setUnsplashDraft("");
+        setUnsplashKey("");
+      },
+    },
+    {
+      id: "pexels",
+      label: "Pexels",
+      value: pexelsDraft,
+      onChange: setPexelsDraft,
+      onSave: () => setPexelsKey(pexelsDraft),
+      onClear: () => {
+        setPexelsDraft("");
+        setPexelsKey("");
       },
     },
   ];
@@ -198,70 +235,58 @@ export default function Sidebar() {
             <div className="sb-brand">
               <span className="sb-orb" />
               <span id="sb-title" className="sb-logo">
-                superNova
+                Alpha
               </span>
             </div>
           </div>
 
-          {/* Navigation */}
-          <section className="card">
-            <header>Navigation</header>
-            <nav className="sb-nav" aria-label="Navigation">
-              <ul>
-                {pages.map((p) => (
-                  <li key={p.path}>
-                    <NavLink
-                      to={p.path}
-                      end
-                      className={({ isActive }) => (isActive ? "active" : "")}
-                      onClick={() => setOpen(false)}
-                      aria-label={p.label}
-                    >
-                      <span aria-hidden>{p.icon}</span>
-                      <span>{p.label}</span>
-                    </NavLink>
-                  </li>
-                ))}
-              </ul>
-            </nav>
-          </section>
+          <nav className="sb-nav">
+            {pages.map(({ label, path, icon }) => (
+              <NavLink key={path} to={path} className="sb-nav-item">
+                <span className="sb-ico">{icon}</span>
+                {label}
+              </NavLink>
+            ))}
+          </nav>
 
           <section className="card">
-            <header>Premium features</header>
-            <nav className="sb-nav sb-nav-premium" aria-label="Premium features">
-              <ul>
-                <li>
-                  <NavLink
-                    to="/music"
-                    className={({ isActive }) => (isActive ? "active" : "")}
-                    onClick={() => setOpen(false)}
-                    aria-label="Music"
-                  >
-                    <span aria-hidden>🎵</span>
-                    <span>Music</span>
-                  </NavLink>
-                </li>
-                <li>
-                  <NavLink
-                    to="/agents"
-                    className={({ isActive }) => (isActive ? "active" : "")}
-                    onClick={() => setOpen(false)}
-                    aria-label="Agents"
-                  >
-                    <span aria-hidden>🤖</span>
-                    <span>Agents</span>
-                  </NavLink>
-                </li>
-              </ul>
-            </nav>
+            <header>Profile</header>
+            <div className="grid two">
+              <div>
+                <label className="label" htmlFor="name">Name</label>
+                <input
+                  id="name"
+                  className="input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="label" htmlFor="handle">Handle</label>
+                <input
+                  id="handle"
+                  className="input"
+                  value={handle}
+                  onChange={(e) => setHandle(e.target.value)}
+                />
+              </div>
+            </div>
+            <label className="label" htmlFor="bio">Bio</label>
+            <textarea
+              id="bio"
+              className="input"
+              value={bio}
+              onChange={(e) => setBio(e.target.value)}
+            />
+            <label className="label" htmlFor="avatar">Avatar URL</label>
+            <input
+              id="avatar"
+              className="input"
+              value={avatar}
+              onChange={(e) => setAvatar(e.target.value)}
+            />
           </section>
 
-          {/* Profile card */}
-          <section className="card profile">
-            {/* ... profile avatar, name, handle inputs ... */}
-          </section>
-
-          {/* Appearance settings */}
           <section className="card">
             <header>Appearance</header>
             <div className="grid two">
@@ -289,7 +314,7 @@ export default function Sidebar() {
                         aria-label={c}
                         type="button"
                       />
-                    )
+                    ),
                   )}
                   <input
                     className="input"

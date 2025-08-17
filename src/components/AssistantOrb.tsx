@@ -143,6 +143,9 @@ export default function AssistantOrb() {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const msgListRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const inFlightIdRef = useRef(0);
+  const mountedRef = useRef(true);
 
   // feed context
   useEffect(() => {
@@ -155,6 +158,58 @@ export default function AssistantOrb() {
     return () => {
       offHover?.();
       offSelect?.();
+    };
+  }, []);
+
+  useEffect(() => {
+    const off = bus.on?.("toast", (m: string) => {
+      if (mountedRef.current) setToast(String(m));
+    });
+    return () => off?.();
+  }, []);
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    let raf: number | null = null;
+    const onTime = () => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => {
+        if (!mountedRef.current || !el.duration) return;
+        setPlayProgress(el.currentTime / el.duration);
+      });
+    };
+    const onEnded = () => {
+      if (mountedRef.current) setPlayProgress(1);
+    };
+    const onError = () => {
+      if (mountedRef.current) setToast("Audio playback failed");
+    };
+    el.addEventListener("timeupdate", onTime);
+    el.addEventListener("ended", onEnded);
+    el.addEventListener("error", onError);
+    return () => {
+      el.removeEventListener("timeupdate", onTime);
+      el.removeEventListener("ended", onEnded);
+      el.removeEventListener("error", onError);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      const audio = audioRef.current;
+      try {
+        audio?.pause();
+      } catch {}
+      if (audio) {
+        audio.removeAttribute("src");
+      }
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
     };
   }, []);
 
@@ -271,12 +326,26 @@ export default function AssistantOrb() {
             title: (post as any)?.title,
             text: ctxPostText || getPostText(post),
           }
-        : null
+        : null,
     );
-    push(resp);
+    if (!mountedRef.current) return;
+    if (resp.ok) {
+      push(resp.message);
+    } else {
+      setToast(resp.error);
+      push({ id: uuid(), role: "assistant", text: `⚠️ ${resp.error}`, ts: Date.now(), postId: post?.id ?? null });
+    }
 
     if (voiceOn) {
-      const stream = await askLLMVoice(
+      const reqId = ++inFlightIdRef.current;
+      const el = audioRef.current;
+      try { el?.pause(); } catch {}
+      if (el) el.currentTime = 0;
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+      const vResp = await askLLMVoice(
         T,
         post
           ? {
@@ -284,15 +353,20 @@ export default function AssistantOrb() {
               title: (post as any)?.title,
               text: ctxPostText || getPostText(post),
             }
-          : null
+          : null,
       );
-      if (stream) {
+      if (inFlightIdRef.current !== reqId || !mountedRef.current) return;
+      if (vResp.ok) {
         try {
-          const blob = await new Response(stream).blob();
+          const blob = await new Response(vResp.stream).blob();
           const url = URL.createObjectURL(blob);
-          const el = audioRef.current;
+          if (inFlightIdRef.current !== reqId || !mountedRef.current) {
+            URL.revokeObjectURL(url);
+            return;
+          }
           if (el) {
             el.src = url;
+            audioUrlRef.current = url;
             setPlayProgress(0);
             try {
               await el.play();
@@ -300,6 +374,8 @@ export default function AssistantOrb() {
               logError(err);
               setToast("Audio playback failed");
             }
+          } else {
+            URL.revokeObjectURL(url);
           }
         } catch (err) {
           logError(err);
@@ -307,7 +383,7 @@ export default function AssistantOrb() {
           push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
         }
       } else {
-        setToast("Voice failed");
+        if (vResp.error !== "missing api key") setToast(vResp.error);
         push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
       }
     }
@@ -658,16 +734,7 @@ export default function AssistantOrb() {
   return (
     <>
       <style>{keyframes}</style>
-      <audio
-        ref={audioRef}
-        style={{ display: "none" }}
-        onTimeUpdate={e => {
-          const el = e.currentTarget;
-          if (el.duration) setPlayProgress(el.currentTime / el.duration);
-        }}
-        onEnded={() => setPlayProgress(1)}
-        onError={() => setToast("Audio playback failed")}
-      />
+      <audio ref={audioRef} style={{ display: "none" }} />
 
       <button
         ref={orbRef}
@@ -765,6 +832,7 @@ export default function AssistantOrb() {
               style={{ marginLeft: "auto", height: 28, padding: "0 10px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.16)" }}
               aria-label={voiceOn ? "Mute voice" : "Enable voice"}
               title={voiceOn ? "Mute voice" : "Enable voice"}
+              aria-pressed={voiceOn}
             >
               {voiceOn ? "🔊" : "🔇"}
             </button>
@@ -772,7 +840,13 @@ export default function AssistantOrb() {
           </div>
 
           {voiceOn && (
-            <div style={{ height: 4, background: "rgba(255,255,255,.12)", marginBottom: 8 }}>
+            <div
+              style={{ height: 4, background: "rgba(255,255,255,.12)", marginBottom: 8 }}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={1}
+              aria-valuenow={playProgress}
+            >
               <div style={{ width: `${playProgress * 100}%`, height: "100%", background: "#fff", transition: "width .1s linear" }} />
             </div>
           )}
