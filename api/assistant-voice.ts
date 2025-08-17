@@ -68,7 +68,14 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const ctxSelection =
     typeof ctx.selection === "string" ? ctx.selection.slice(0, 1000) : "";
   const ctxImages = Array.isArray(ctx.images)
-    ? ctx.images.filter((u): u is string => typeof u === "string").slice(0, 5)
+    ? ctx.images
+        .filter((u): u is string => typeof u === "string")
+        .filter(
+          (u) =>
+            /^https?:\/\//i.test(u) ||
+            /^data:image\/[a-zA-Z]+;base64,/i.test(u),
+        )
+        .slice(0, 5)
     : [];
 
   const messages: Array<{ role: "system" | "user"; content: string }> = [
@@ -94,10 +101,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     messages.push({ role: "system", content: `User selected text: ${ctxSelection}` });
   }
 
-  if (ctxImages.length) {
-    messages.push({ role: "system", content: `Image URLs: ${ctxImages.join(", ")}` });
-  }
-
   messages.push({ role: "user", content: prompt });
 
   // Give the model enough time to respond
@@ -109,6 +112,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       role: m.role,
       content: [{ type: "text", text: m.content }],
     }));
+
+    if (ctxImages.length) {
+      input.push({
+        role: "user",
+        content: ctxImages.map((url) => ({
+          type: "input_image",
+          image_url: url,
+        })),
+      });
+    }
 
     const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
