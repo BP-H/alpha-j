@@ -18,7 +18,7 @@ const EMOJI_LIST: string[] = [
 export default function PostCard({ post }: { post: Post }) {
   const [drawer, setDrawer] = useState(false);
   const [comments, setComments] = useState<string[]>([]);
-  const [reactions, setReactions] = useState<string[]>([]);
+  const [reactions, setReactions] = useState<Record<string, number>>({});
 
   useEffect(() => {
     const off1 = bus.on?.("post:comment", ({ id, body }) => {
@@ -29,7 +29,11 @@ export default function PostCard({ post }: { post: Post }) {
     const off2 = bus.on?.("post:react", ({ id, emoji }) => {
       if (String(id) !== String(post.id)) return;
       setDrawer(true);
-      setReactions((s) => [emoji, ...s].slice(0, 60));
+      setReactions((s) => {
+        const out = { ...s };
+        out[emoji] = (out[emoji] || 0) + 1;
+        return out;
+      });
     });
     const off3 = bus.on?.("post:focus", ({ id }) => {
       if (String(id) !== String(post.id)) return;
@@ -227,7 +231,14 @@ export default function PostCard({ post }: { post: Post }) {
           <div className="pc-section">
             <strong>Reactions</strong>
             <div className="pc-reactions">
-              {reactions.length ? reactions.map((e, i) => <span key={i} className="pc-re">{e}</span>) : <span className="pc-empty">—</span>}
+              {Object.keys(reactions).length
+                ? Object.entries(reactions).map(([e, count]) => (
+                    <span key={e} className="pc-re">
+                      {e}
+                      <span className="pc-re-count">{count}</span>
+                    </span>
+                  ))
+                : <span className="pc-empty">—</span>}
             </div>
           </div>
 
