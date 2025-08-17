@@ -11,7 +11,9 @@ Fetching images from Unsplash or Pexels requires API keys. Set the following var
 - `VITE_UNSPLASH_KEY` – Unsplash access key
 - `VITE_PEXELS_KEY` – Pexels API key
 
-The app reads these values from `import.meta.env` and falls back to any keys stored in the in-memory secure store for local testing.
+For voice and text assistant features, supply your OpenAI API key inside the app instead of via environment variables. Open the sidebar and enter it in the **OpenAI (voice & text assistants)** field; the key is stored locally in your browser.
+
+The app reads the Unsplash and Pexels values from `import.meta.env` and falls back to any keys stored in the in-memory secure store for local testing.
 
 ### Adding keys on Vercel
 
