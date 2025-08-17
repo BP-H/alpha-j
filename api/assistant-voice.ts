@@ -14,6 +14,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     model?: string;  // e.g. "gpt-4o-mini-tts"
     voice?: string;  // e.g. "alloy", "verse", "aria"
     speed?: number;  // optional: 0.25 - 4
+    ctx?: {
+      postId?: string | number;
+      title?: string;
+      text?: string;
+      imageUrl?: string;
+    } | null;
   };
 
   const headerKey =
@@ -40,9 +46,21 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? body.q
         : "";
 
-  const prompt = (raw || "").trim().slice(0, 4000);
+  let prompt = (raw || "").trim().slice(0, 4000);
   if (!prompt) {
     return res.status(400).json({ ok: false, error: "Missing prompt" });
+  }
+
+  const ctx = body.ctx && typeof body.ctx === "object" ? body.ctx : null;
+  if (ctx) {
+    const parts: string[] = [];
+    if (ctx.title) parts.push(`Title: ${ctx.title}`);
+    if (ctx.text) parts.push(`Text: ${ctx.text}`);
+    if (ctx.imageUrl) parts.push(`Image: ${ctx.imageUrl}`);
+    if (ctx.postId) parts.push(`Post ID: ${ctx.postId}`);
+    if (parts.length) {
+      prompt = `Context: ${parts.join(" ")}\n\n${prompt}`;
+    }
   }
 
   const model = (typeof body.model === "string" && body.model.trim()) || "gpt-4o-mini-tts";
