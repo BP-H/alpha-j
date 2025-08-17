@@ -355,9 +355,10 @@ export default function AssistantOrb() {
       if (id !== inFlightIdRef.current) return;
       if (streamResp.ok) {
         try {
-          const blob = await new Response(streamResp.stream).blob();
-          const url = URL.createObjectURL(blob);
           const el = audioRef.current;
+          const mime = streamResp.type;
+          const mediaSource = new MediaSource();
+          const url = URL.createObjectURL(mediaSource);
           if (id !== inFlightIdRef.current) {
             URL.revokeObjectURL(url);
             return;
@@ -367,12 +368,52 @@ export default function AssistantOrb() {
             audioUrlRef.current = url;
             el.src = url;
             setPlayProgress(0);
-            try {
-              await el.play();
-            } catch (err) {
-              logError(err);
-              setToast("Audio playback failed");
-            }
+
+            mediaSource.addEventListener("sourceopen", () => {
+              const sourceBuffer = mediaSource.addSourceBuffer(mime);
+              const reader = streamResp.stream.getReader();
+              let loaded = 0;
+              const pump = async (): Promise<void> => {
+                try {
+                  const { value, done } = await reader.read();
+                  if (done) {
+                    if (!sourceBuffer.updating) mediaSource.endOfStream();
+                    else
+                      sourceBuffer.addEventListener(
+                        "updateend",
+                        () => mediaSource.endOfStream(),
+                        { once: true },
+                      );
+                    return;
+                  }
+                  loaded += value.byteLength;
+                  bus.emit?.("voice:progress", { loaded });
+                  sourceBuffer.appendBuffer(value);
+                  await new Promise((r) =>
+                    sourceBuffer.addEventListener("updateend", r, { once: true }),
+                  );
+                  if (el.paused) {
+                    try {
+                      await el.play();
+                    } catch (err) {
+                      logError(err);
+                      setToast("Audio playback failed");
+                    }
+                  }
+                  pump();
+                } catch (err: any) {
+                  logError(err);
+                  setToast(
+                    `Voice stream interrupted: ${err?.message || "network error"}`,
+                  );
+                  if (audioUrlRef.current) {
+                    URL.revokeObjectURL(audioUrlRef.current);
+                    audioUrlRef.current = null;
+                  }
+                }
+              };
+              pump();
+            });
           } else {
             URL.revokeObjectURL(url);
           }
@@ -736,6 +777,13 @@ export default function AssistantOrb() {
       <audio
         ref={audioRef}
         style={{ display: "none" }}
+        onProgress={e => {
+          const el = e.currentTarget;
+          if (el.buffered.length && el.duration) {
+            const end = el.buffered.end(el.buffered.length - 1);
+            bus.emit?.("voice:progress", { buffered: end / el.duration });
+          }
+        }}
         onTimeUpdate={e => {
           const el = e.currentTarget;
           if (el.duration) {
@@ -752,12 +800,20 @@ export default function AssistantOrb() {
             cancelAnimationFrame(progressRafRef.current);
           }
           setPlayProgress(1);
+          if (audioUrlRef.current) {
+            URL.revokeObjectURL(audioUrlRef.current);
+            audioUrlRef.current = null;
+          }
         }}
         onError={() => {
           if (progressRafRef.current != null) {
             cancelAnimationFrame(progressRafRef.current);
           }
           setToast("Audio playback failed");
+          if (audioUrlRef.current) {
+            URL.revokeObjectURL(audioUrlRef.current);
+            audioUrlRef.current = null;
+          }
         }}
       />
 
