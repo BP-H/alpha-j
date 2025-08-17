@@ -122,6 +122,7 @@ export async function askLLM(
 export async function askLLMVoice(
   prompt: string,
   ctx?: AssistantCtx,
+  opts?: { signal?: AbortSignal; onStatus?: (s: string) => void },
 ): Promise<AskVoiceResult> {
   const apiKey = getKey("openai");
   if (!apiKey) {
@@ -138,13 +139,29 @@ export async function askLLMVoice(
   const retries = 2;
   for (let attempt = 0; attempt <= retries; attempt++) {
     const ac = new AbortController();
-    const timeout = setTimeout(() => ac.abort(), 15_000);
+    const timeout = setTimeout(() => ac.abort(), 30_000);
+
+    const signals: AbortSignal[] = [ac.signal];
+    if (opts?.signal) signals.push(opts.signal);
+    const signal =
+      signals.length === 1
+        ? signals[0]
+        : (AbortSignal as any).any
+          ? (AbortSignal as any).any(signals)
+          : (() => {
+              const controller = new AbortController();
+              signals.forEach((s) => {
+                if (s.aborted) controller.abort();
+                else s.addEventListener("abort", () => controller.abort(), { once: true });
+              });
+              return controller.signal;
+            })();
     try {
       const res = await fetch("/api/assistant-voice", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify(payload),
-        signal: ac.signal,
+        signal,
       });
       clearTimeout(timeout);
 
@@ -181,13 +198,17 @@ export async function askLLMVoice(
     } catch (e: any) {
       clearTimeout(timeout);
       const rawMsg = e?.message || "request failed";
-      const msg = /network/i.test(rawMsg)
-        ? "network error, please check your connection"
-        : rawMsg;
-      if (attempt < retries) {
+      const isAbort = e?.name === "AbortError";
+      const msg = isAbort
+        ? "request timed out"
+        : /network/i.test(rawMsg)
+          ? "network error, please check your connection"
+          : rawMsg;
+      if (attempt < retries && (isAbort || /network/i.test(rawMsg))) {
         console.warn(
           `assistant voice request failed (attempt ${attempt + 1}): ${msg}`,
         );
+        opts?.onStatus?.(`Retrying… (${attempt + 2}/${retries + 1})`);
         continue;
       }
       const toast = `Assistant voice request failed: ${msg}`;

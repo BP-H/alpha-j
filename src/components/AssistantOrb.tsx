@@ -181,6 +181,7 @@ export default function AssistantOrb() {
   const audioUrlRef = useRef<string | null>(null);
   const progressRafRef = useRef<number | null>(null);
   const inFlightIdRef = useRef(0);
+  const voiceAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     return () => {
@@ -193,6 +194,8 @@ export default function AssistantOrb() {
         cancelAnimationFrame(progressRafRef.current);
       }
       audioRef.current?.pause();
+      audioRef.current && (audioRef.current.src = "");
+      voiceAbortRef.current?.abort();
     };
   }, []);
 
@@ -343,7 +346,16 @@ export default function AssistantOrb() {
     if (voiceOn && replyText) {
       const id = ++inFlightIdRef.current;
       audioRef.current?.pause();
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+      if (audioRef.current) audioRef.current.src = "";
 
+      voiceAbortRef.current?.abort();
+      voiceAbortRef.current = new AbortController();
+
+      setToast("Generating voice…");
       const streamResp = await askLLMVoice(
         replyText,
         post
@@ -352,7 +364,11 @@ export default function AssistantOrb() {
               title: (post as any)?.title,
               text: ctxPostText || getPostText(post),
             }
-          : null
+          : null,
+        {
+          signal: voiceAbortRef.current.signal,
+          onStatus: (s) => setToast(s),
+        },
       );
       if (id !== inFlightIdRef.current) return;
       if (streamResp.ok) {
@@ -366,7 +382,6 @@ export default function AssistantOrb() {
             return;
           }
           if (el) {
-            if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
             audioUrlRef.current = url;
             el.src = url;
             setPlayProgress(0);
@@ -386,6 +401,7 @@ export default function AssistantOrb() {
                         () => mediaSource.endOfStream(),
                         { once: true },
                       );
+                    setToast("");
                     return;
                   }
                   loaded += value.byteLength;
@@ -404,6 +420,7 @@ export default function AssistantOrb() {
                   }
                   pump();
                 } catch (err: any) {
+                  if (err?.name === "AbortError") return;
                   logError(err);
                   setToast(
                     `Voice stream interrupted: ${err?.message || "network error"}`,
@@ -425,7 +442,7 @@ export default function AssistantOrb() {
           push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
         }
       } else {
-        setToast("Voice failed");
+        setToast(`Voice failed: ${streamResp.error}`);
         push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
       }
     }
