@@ -1,127 +1,177 @@
 // src/lib/assistant.ts
 import type { AssistantMessage, RemixSpec } from "../types";
 import { getKey } from "./secureStore";
+import { notify } from "./notify";
 
-type AssistantCtx = {
+export type AssistantCtx = {
   postId?: string | number;
   title?: string;
   text?: string;
 } | null;
 
+const warned = new Set<string>();
+function getOpenAIKey(): string {
+  const key = getKey("openai") || getKey("sn2177.apiKey");
+  if (!key && !warned.has("openai")) {
+    warned.add("openai");
+    console.warn("OpenAI API key is missing");
+    notify("OpenAI API key is missing");
+  }
+  return key;
+}
+
+interface AskLLMPayload {
+  prompt: string;
+  ctx?: AssistantCtx;
+  model?: string;
+}
+
+interface AskLLMResponse {
+  text?: string;
+  error?: string;
+}
+
 export async function askLLM(
   input: string,
   ctx?: AssistantCtx,
-): Promise<AssistantMessage> {
-  try {
-    // Optional model picked in UI and saved to localStorage
-    let model: string | undefined;
-    if (typeof window !== "undefined") {
-      try {
-        const raw = window.localStorage.getItem("sn.model.openai");
-        if (raw) {
-          try {
-            model = String(JSON.parse(raw) ?? "").trim() || undefined;
-          } catch {
-            model = raw.trim() || undefined;
-          }
+): Promise<{ ok: true; message: AssistantMessage } | { ok: false; error: string }> {
+  // Optional model picked in UI and saved to localStorage
+  let model: string | undefined;
+  if (typeof window !== "undefined") {
+    try {
+      const raw = window.localStorage.getItem("sn.model.openai");
+      if (raw) {
+        try {
+          model = String(JSON.parse(raw) ?? "").trim() || undefined;
+        } catch {
+          model = raw.trim() || undefined;
         }
-      } catch {
-        // ignore
       }
+    } catch {
+      // ignore
     }
+  }
 
-    const payload: Record<string, unknown> = { prompt: input };
-    if (ctx) payload.ctx = ctx;
-    if (model) payload.model = model;
+  const payload: AskLLMPayload = { prompt: input };
+  if (ctx) payload.ctx = ctx;
+  if (model) payload.model = model;
 
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 15_000);
+  try {
     const res = await fetch("/api/assistant-reply", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
+      signal: ctrl.signal,
     });
+    clearTimeout(t);
 
-    if (res.ok) {
-      const data = await res.json();
-      return {
+    if (!res.ok) {
+      let msg = "request failed";
+      try {
+        const j = (await res.json()) as { error?: string };
+        if (j?.error) msg = j.error;
+      } catch {
+        try {
+          msg = (await res.text()) || msg;
+        } catch {}
+      }
+      console.error("assistant request failed:", msg);
+      notify(`Assistant request failed: ${msg}`);
+      return { ok: false, error: msg };
+    }
+
+    const data = (await res.json()) as AskLLMResponse;
+    const text = typeof data.text === "string" ? data.text : "";
+    return {
+      ok: true,
+      message: {
         id:
           globalThis.crypto?.randomUUID?.() ??
           Math.random().toString(36).slice(2),
         role: "assistant",
-        text: data.text || "ok",
+        text,
         ts: Date.now(),
         postId: ctx?.postId ?? null,
-      };
-    }
-
-    // Handle non-OK responses so the caller knows the request failed
-    try {
-      const err: any = await res.json().catch(() => null);
-      const msg = err?.error || "request failed";
-      console.error("assistant request failed:", msg);
-      if (typeof window !== "undefined") {
-        try {
-          window.alert?.(`Assistant request failed: ${msg}`);
-        } catch {
-          // ignore alert errors
-        }
-      }
-    } catch {
-      console.error("assistant request failed: unknown error");
-    }
-  } catch {
-    // fall through to stub
+      },
+    };
+  } catch (e) {
+    clearTimeout(t);
+    const msg = e instanceof Error ? e.message : "network error";
+    console.error("assistant request failed:", msg);
+    notify(`Assistant request failed: ${msg}`);
+    return { ok: false, error: msg };
   }
+}
 
-  // offline stub so builds never fail
-  return {
-    id:
-      globalThis.crypto?.randomUUID?.() ??
-      Math.random().toString(36).slice(2),
-    role: "assistant",
-    text: `💡 stub: “${input}”`,
-    ts: Date.now(),
-    postId: ctx?.postId ?? null,
-  };
+interface AskVoicePayload {
+  apiKey: string;
+  prompt: string;
+  ctx?: AssistantCtx;
 }
 
 export async function askLLMVoice(
   prompt: string,
   ctx?: AssistantCtx,
-): Promise<ReadableStream<Uint8Array> | null> {
-  const apiKey = getKey("sn2177.apiKey");
+): Promise<{ ok: true; stream: ReadableStream<Uint8Array> } | { ok: false; error: string }> {
+  const apiKey = getOpenAIKey();
+  if (!apiKey) return { ok: false, error: "missing api key" };
+
+  const payload: AskVoicePayload = { apiKey, prompt };
+  if (ctx) payload.ctx = ctx;
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), 15_000);
 
   try {
-    const payload: Record<string, unknown> = { apiKey, prompt };
-    if (ctx) payload.ctx = ctx;
-
     const res = await fetch("/api/assistant-voice", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
+      signal: ctrl.signal,
     });
+    clearTimeout(t);
 
     if (!res.ok) {
-      const msg = await res.text().catch(() => "request failed");
-      console.error("assistant voice request failed:", msg);
-      if (typeof window !== "undefined") {
+      let msg = "request failed";
+      try {
+        const j = (await res.json()) as { error?: string };
+        if (j?.error) msg = j.error;
+      } catch {
         try {
-          window.alert?.(`Assistant voice request failed: ${msg}`);
-        } catch {
-          // ignore alert errors
-        }
+          msg = (await res.text()) || msg;
+        } catch {}
       }
-      return null;
+      console.error("assistant voice request failed:", msg);
+      notify(`Assistant voice request failed: ${msg}`);
+      return { ok: false, error: msg };
     }
 
-    return res.body as ReadableStream<Uint8Array>;
-  } catch {
-    // fall through
+    const type = res.headers.get("content-type") || "";
+    if (!type.startsWith("audio/") || !res.body) {
+      let msg = "invalid audio response";
+      try {
+        const j = (await res.json()) as { error?: string };
+        if (j?.error) msg = j.error;
+      } catch {
+        try {
+          msg = (await res.text()) || msg;
+        } catch {}
+      }
+      return { ok: false, error: msg };
+    }
+    return { ok: true, stream: res.body };
+  } catch (e) {
+    clearTimeout(t);
+    const msg = e instanceof Error ? e.message : "network error";
+    console.error("assistant voice request failed:", msg);
+    notify(`Assistant voice request failed: ${msg}`);
+    return { ok: false, error: msg };
   }
-  return null;
 }
 
 export async function imageToVideo(
-  spec: RemixSpec
+  spec: RemixSpec,
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
   try {
     const res = await fetch("/api/image-to-video", {

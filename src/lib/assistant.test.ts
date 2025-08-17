@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { askLLM } from "./assistant";
+import { clearAll } from "./secureStore";
 
 describe("askLLM id generation", () => {
   const originalFetch = global.fetch;
@@ -16,6 +17,7 @@ describe("askLLM id generation", () => {
     }
     Math.random = originalRandom;
     vi.resetAllMocks();
+    clearAll();
   });
 
   it("uses crypto.randomUUID when available", async () => {
@@ -31,8 +33,9 @@ describe("askLLM id generation", () => {
       configurable: true,
     });
 
-    const msg = await askLLM("hello");
-    expect(msg.id).toBe(uuid);
+    const res = await askLLM("hello");
+    expect(res.ok).toBe(true);
+    expect(res.ok && res.message.id).toBe(uuid);
   });
 
   it("falls back to Math.random when crypto.randomUUID is unavailable", async () => {
@@ -46,7 +49,8 @@ describe("askLLM id generation", () => {
     delete global.crypto;
     Math.random = () => 0.123456789;
 
-    const msg = await askLLM("hello");
-    expect(msg.id).toBe("4fzzzxjylrx");
+    const res = await askLLM("hello");
+    expect(res.ok).toBe(true);
+    expect(res.ok && res.message.id).toBe("4fzzzxjylrx");
   });
 });

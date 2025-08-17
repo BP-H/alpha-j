@@ -138,6 +138,10 @@ export default function AssistantOrb() {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const msgListRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const inFlightIdRef = useRef(0);
+  const progressRafRef = useRef<number | null>(null);
+  const mountedRef = useRef(true);
 
   // feed context
   useEffect(() => {
@@ -156,6 +160,18 @@ export default function AssistantOrb() {
   // speech
   const recRef = useRef<SpeechRecognitionLike | null>(null);
   const restartRef = useRef(false);
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      audioRef.current?.pause();
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+      if (progressRafRef.current) cancelAnimationFrame(progressRafRef.current);
+    };
+  }, []);
+
   function ensureRec(): SpeechRecognitionLike | null {
     if (recRef.current) return recRef.current;
     const C: SpeechRecognitionConstructor | null =
@@ -211,6 +227,15 @@ export default function AssistantOrb() {
     setMic(false);
     setInterim("");
   }
+  const onAudioTime = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    if (progressRafRef.current) return;
+    const el = e.currentTarget;
+    progressRafRef.current = requestAnimationFrame(() => {
+      progressRafRef.current = null;
+      if (!mountedRef.current) return;
+      if (el.duration) setPlayProgress(el.currentTime / el.duration);
+    });
+  };
 
   // commands
   const push = (m: AssistantMessage) => setMsgs(s => [...s, m]);
@@ -261,36 +286,47 @@ export default function AssistantOrb() {
     const resp = await askLLM(
       T,
       post
-        ? {
-            postId: post.id as unknown as string | number,
-            title: (post as any)?.title,
-            text: ctxPostText || getPostText(post),
-          }
-        : null
+        ? { postId: post.id as unknown as string | number, title: (post as any)?.title, text: ctxPostText || getPostText(post) }
+        : null,
     );
-    push(resp);
+    if (!mountedRef.current) return;
+    if (resp.ok) {
+      push(resp.message);
+    } else {
+      setToast(resp.error);
+      push({ id: uuid(), role: "assistant", text: `⚠️ ${resp.error}`, ts: Date.now(), postId: post?.id ?? null });
+      return;
+    }
 
     if (voiceOn) {
-      const stream = await askLLMVoice(
+      const voiceId = ++inFlightIdRef.current;
+      const el = audioRef.current;
+      el?.pause();
+      setPlayProgress(0);
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+      const voice = await askLLMVoice(
         T,
         post
-          ? {
-              postId: post.id as unknown as string | number,
-              title: (post as any)?.title,
-              text: ctxPostText || getPostText(post),
-            }
-          : null
+          ? { postId: post.id as unknown as string | number, title: (post as any)?.title, text: ctxPostText || getPostText(post) }
+          : null,
       );
-      if (stream) {
+      if (inFlightIdRef.current !== voiceId || !mountedRef.current) return;
+      if (voice.ok) {
         try {
-          const blob = await new Response(stream).blob();
+          const blob = await new Response(voice.stream).blob();
+          if (inFlightIdRef.current !== voiceId || !mountedRef.current) return;
           const url = URL.createObjectURL(blob);
-          const el = audioRef.current;
-          if (el) {
-            el.src = url;
+          if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+          audioUrlRef.current = url;
+          const el2 = audioRef.current;
+          if (el2) {
+            el2.src = url;
             setPlayProgress(0);
             try {
-              await el.play();
+              await el2.play();
             } catch (err) {
               logError(err);
               setToast("Audio playback failed");
@@ -302,7 +338,7 @@ export default function AssistantOrb() {
           push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
         }
       } else {
-        setToast("Voice failed");
+        setToast(voice.error);
         push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
       }
     }
@@ -656,12 +692,9 @@ export default function AssistantOrb() {
       <audio
         ref={audioRef}
         style={{ display: "none" }}
-        onTimeUpdate={e => {
-          const el = e.currentTarget;
-          if (el.duration) setPlayProgress(el.currentTime / el.duration);
-        }}
-        onEnded={() => setPlayProgress(1)}
-        onError={() => setToast("Audio playback failed")}
+        onTimeUpdate={onAudioTime}
+        onEnded={() => { if (mountedRef.current) setPlayProgress(1); }}
+        onError={() => { if (mountedRef.current) setToast("Audio playback failed"); }}
       />
 
       <button
@@ -760,6 +793,7 @@ export default function AssistantOrb() {
               style={{ marginLeft: "auto", height: 28, padding: "0 10px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.16)" }}
               aria-label={voiceOn ? "Mute voice" : "Enable voice"}
               title={voiceOn ? "Mute voice" : "Enable voice"}
+              aria-pressed={voiceOn}
             >
               {voiceOn ? "🔊" : "🔇"}
             </button>
@@ -767,7 +801,7 @@ export default function AssistantOrb() {
           </div>
 
           {voiceOn && (
-            <div style={{ height: 4, background: "rgba(255,255,255,.12)", marginBottom: 8 }}>
+            <div style={{ height: 4, background: "rgba(255,255,255,.12)", marginBottom: 8 }} role="progressbar" aria-valuemin={0} aria-valuemax={1} aria-valuenow={playProgress}>
               <div style={{ width: `${playProgress * 100}%`, height: "100%", background: "#fff", transition: "width .1s linear" }} />
             </div>
           )}
