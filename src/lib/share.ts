@@ -1,5 +1,6 @@
 // src/lib/share.ts
 import type { Post } from "../types";
+import bus from "./bus";
 
 /** Options version (Web Share friendly) */
 export interface ShareOptions {
@@ -66,7 +67,9 @@ export async function sharePost(arg: Post | ShareOptions | string): Promise<bool
   const ta = document.createElement("textarea");
   try {
     if (!document.body) {
-      console.error("sharePost: document.body is not available");
+      const message = "sharePost: document.body is not available";
+      bus.emit?.('toast', { message });
+      console.error(message);
       return false;
     }
 
@@ -77,11 +80,15 @@ export async function sharePost(arg: Post | ShareOptions | string): Promise<bool
     ta.select();
     const success = document.execCommand("copy");
     if (!success) {
-      console.error("sharePost: copy command failed");
+      const message = "sharePost: copy command failed";
+      bus.emit?.('toast', { message });
+      console.error(message);
     }
     return success;
   } catch (err) {
-    console.error("sharePost: unable to copy", err);
+    const message = "sharePost: unable to copy";
+    bus.emit?.('toast', { message });
+    console.error(message, err);
     return false;
   } finally {
     if (document.body && ta.parentNode === document.body) {

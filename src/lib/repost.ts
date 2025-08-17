@@ -1,3 +1,5 @@
+import bus from "./bus";
+
 export type Platform = 'x' | 'facebook' | 'linkedin';
 
 /**
@@ -36,7 +38,9 @@ export async function repost(
     return true;
   } catch (err) {
     // eslint-disable-next-line no-console -- surface error for debugging
-    console.error('Repost failed', err);
+    const message = 'Repost failed';
+    bus.emit?.('toast', { message });
+    console.error(message, err);
     return false;
   }
 }

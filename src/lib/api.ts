@@ -6,6 +6,7 @@ let warned = false;
 function warnOnce(msg: string) {
   if (warned) return;
   warned = true;
+  bus.emit("toast", { message: msg });
   console.warn(msg);
   bus.emit("notify", msg);
 }
@@ -89,7 +90,9 @@ export async function fetchPlayers(): Promise<Player[]> {
     try {
       data = (await r.json()) as PlayersJson;
     } catch (e: unknown) {
-      console.error("Failed to parse /api/players response", e);
+      const message = "Failed to parse /api/players response";
+      bus.emit("toast", { message });
+      console.error(message, e);
       return [];
     }
     if (data.ok && Array.isArray(data.players)) {
@@ -102,7 +105,9 @@ export async function fetchPlayers(): Promise<Player[]> {
     }
     return [];
   } catch (e: unknown) {
-    console.error("Failed to fetch players", e);
+    const message = "Failed to fetch players";
+    bus.emit("toast", { message });
+    console.error(message, e);
     return [];
   }
 }

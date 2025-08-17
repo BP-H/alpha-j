@@ -90,8 +90,10 @@ export async function askLLM(
 
     if (!res.ok) {
       const msg = await parseError(res);
+      const toast = `Assistant request failed: ${msg}`;
+      bus.emit?.("toast", { message: toast });
       console.error("assistant request failed:", msg);
-      bus.emit?.("notify", `Assistant request failed: ${msg}`);
+      bus.emit?.("notify", toast);
       return { ok: false, error: msg };
     }
 
@@ -109,8 +111,10 @@ export async function askLLM(
   } catch (e: any) {
     clearTimeout(timeout);
     const msg = e?.message || "request failed";
+    const toast = `Assistant request failed: ${msg}`;
+    bus.emit?.("toast", { message: toast });
     console.error("assistant request failed:", msg);
-    bus.emit?.("notify", `Assistant request failed: ${msg}`);
+    bus.emit?.("notify", toast);
     return { ok: false, error: msg };
   }
 }
@@ -144,24 +148,30 @@ export async function askLLMVoice(
 
     if (!res.ok) {
       const msg = await parseError(res);
+      const toast = `Assistant voice request failed: ${msg}`;
+      bus.emit?.("toast", { message: toast });
       console.error("assistant voice request failed:", msg);
-      bus.emit?.("notify", `Assistant voice request failed: ${msg}`);
+      bus.emit?.("notify", toast);
       return { ok: false, error: msg };
     }
 
     const type = res.headers.get("content-type") || "";
     if (!type.startsWith("audio/")) {
       const msg = await parseError(res);
+      const toast = `Assistant voice request failed: ${msg}`;
+      bus.emit?.("toast", { message: toast });
       console.error("assistant voice request failed:", msg);
-      bus.emit?.("notify", `Assistant voice request failed: ${msg}`);
+      bus.emit?.("notify", toast);
       return { ok: false, error: msg || "invalid content type" };
     }
 
     const body = res.body as ReadableStream<Uint8Array> | null;
     if (!body || typeof (body as any).getReader !== "function") {
       const msg = "invalid response body";
+      const toast = `Assistant voice request failed: ${msg}`;
+      bus.emit?.("toast", { message: toast });
       console.error("assistant voice request failed:", msg);
-      bus.emit?.("notify", `Assistant voice request failed: ${msg}`);
+      bus.emit?.("notify", toast);
       return { ok: false, error: msg };
     }
 
@@ -169,8 +179,10 @@ export async function askLLMVoice(
   } catch (e: any) {
     clearTimeout(timeout);
     const msg = e?.message || "request failed";
+    const toast = `Assistant voice request failed: ${msg}`;
+    bus.emit?.("toast", { message: toast });
     console.error("assistant voice request failed:", msg);
-    bus.emit?.("notify", `Assistant voice request failed: ${msg}`);
+    bus.emit?.("notify", toast);
     return { ok: false, error: msg };
   }
 }
