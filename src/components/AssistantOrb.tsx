@@ -7,6 +7,7 @@ import type { AssistantMessage, Post } from "../types";
 import RadialMenu from "./RadialMenu";
 import { HOLD_MS } from "./orbConstants";
 import { motion, useReducedMotion } from "framer-motion";
+import { EMOJI_LIST } from "../lib/emojis";
 
 /**
  * Assistant Orb — circular quick menu + 60fps drag + voice.
@@ -69,12 +70,6 @@ const uuid = () => {
   }
 };
 
-const EMOJI_LIST: string[] = [
-  "🤗","😂","🤣","😅","🙂","😉","😍","😎","🥳","🤯","😡","😱","🤔","🤭","🙄","🥺","🤪","🤫","🤤","😴",
-  "👻","🤖","👽","😈","👋","👍","👎","👏","🙏","👀","💪","🫶","💅","🔥","✨","⚡","💥","❤️","🫠","🫡",
-  "💙","💜","🖤","🤍","❤️‍🔥","❤️‍🩹","💯","💬","🗯️","🎉","🎊","🎁","🏆","🎮","🚀","✈️","🚗","🏠","🫨","🗿",
-  "📱","💡","🎵","📢","📚","📈","✅","❌","❗","❓","‼️","⚠️","🌀","🎬","🍕","🍔","🍎","🍺","⚙️","🧩"
-];
 
 function getClosestPostId(el: Element | null): string | null {
   return el?.closest?.("[data-post-id]")?.getAttribute?.("data-post-id") ?? null;
