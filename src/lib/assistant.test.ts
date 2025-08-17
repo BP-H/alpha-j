@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
+
+vi.mock("./secureStore", () => ({
+  getKey: () => "test-key",
+}));
+
 import { askLLM } from "./assistant";
 
 describe("askLLM id generation", () => {
@@ -52,5 +57,19 @@ describe("askLLM id generation", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.error);
     expect(result.message.id).toBe("4fzzzxjylrx");
+  });
+
+  it("sends the stored API key", async () => {
+    const mockFetch = vi.fn(async (_url: any, init: any) => {
+      const body = JSON.parse(init.body);
+      expect(body.apiKey).toBe("test-key");
+      return { ok: true, json: async () => ({ text: "hi" }) } as any;
+    });
+    // @ts-ignore
+    global.fetch = mockFetch;
+
+    const result = await askLLM("hello");
+    expect(result.ok).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 });
