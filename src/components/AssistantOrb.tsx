@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import bus from "../lib/bus";
 import { logError } from "../lib/logger";
-import { askLLM, askLLMVoice } from "../lib/assistant";
+import { askLLMVoice } from "../lib/assistant";
 import useSpeech from "../lib/useSpeech";
 import type { AssistantMessage, Post } from "../types";
 import RadialMenu from "./RadialMenu";
@@ -302,15 +302,51 @@ export default function AssistantOrb() {
       return;
     }
 
-    const resp = await askLLM(T, ctx);
-    let replyText: string | null = null;
-    if (resp.ok) {
-      if (resp.message) {
-        push(resp.message);
-        replyText = resp.message.text;
+    const id = ++inFlightIdRef.current;
+    audioRef.current?.pause();
+
+    const voiceResp = await askLLMVoice(T, ctx);
+    if (id !== inFlightIdRef.current) return;
+    if (voiceResp.ok) {
+      if (voiceResp.text) {
+        push({
+          id: uuid(),
+          role: "assistant",
+          text: voiceResp.text,
+          ts: Date.now(),
+          postId: post?.id ?? null,
+        });
+      }
+
+      if (voiceOn) {
+        try {
+          const el = audioRef.current;
+          if (el) {
+            const blob = new Blob([voiceResp.audio], { type: voiceResp.type });
+            const url = URL.createObjectURL(blob);
+            if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+            if (id !== inFlightIdRef.current) {
+              URL.revokeObjectURL(url);
+              return;
+            }
+            audioUrlRef.current = url;
+            el.src = url;
+            setPlayProgress(0);
+            try {
+              await el.play();
+            } catch (err) {
+              logError(err);
+              setToast("Audio playback failed");
+            }
+          }
+        } catch (err) {
+          logError(err);
+          setToast("Voice failed");
+          push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
+        }
       }
     } else {
-      const err = resp.error ?? "Unknown error";
+      const err = voiceResp.error ?? "Unknown error";
       setToast(err);
       push({
         id: uuid(),
@@ -319,88 +355,6 @@ export default function AssistantOrb() {
         ts: Date.now(),
         postId: post?.id ?? null,
       });
-    }
-
-    if (voiceOn && replyText) {
-      const id = ++inFlightIdRef.current;
-      audioRef.current?.pause();
-
-      const streamResp = await askLLMVoice(replyText, ctx);
-      if (id !== inFlightIdRef.current) return;
-      if (streamResp.ok) {
-        try {
-          const el = audioRef.current;
-          const mime = streamResp.type;
-          const mediaSource = new MediaSource();
-          const url = URL.createObjectURL(mediaSource);
-          if (id !== inFlightIdRef.current) {
-            URL.revokeObjectURL(url);
-            return;
-          }
-          if (el) {
-            if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-            audioUrlRef.current = url;
-            el.src = url;
-            setPlayProgress(0);
-
-            mediaSource.addEventListener("sourceopen", () => {
-              const sourceBuffer = mediaSource.addSourceBuffer(mime);
-              const reader = streamResp.stream.getReader();
-              let loaded = 0;
-              const pump = async (): Promise<void> => {
-                try {
-                  const { value, done } = await reader.read();
-                  if (done || !value) {
-                    if (!sourceBuffer.updating) mediaSource.endOfStream();
-                    else
-                      sourceBuffer.addEventListener(
-                        "updateend",
-                        () => mediaSource.endOfStream(),
-                        { once: true },
-                      );
-                    return;
-                  }
-                  loaded += value.byteLength;
-                  bus.emit?.("voice:progress", { loaded });
-                  // value is a Uint8Array; append its underlying ArrayBuffer
-                  sourceBuffer.appendBuffer(value.buffer as ArrayBuffer);
-                  await new Promise((r) =>
-                    sourceBuffer.addEventListener("updateend", r, { once: true }),
-                  );
-                  if (el.paused) {
-                    try {
-                      await el.play();
-                    } catch (err) {
-                      logError(err);
-                      setToast("Audio playback failed");
-                    }
-                  }
-                  pump();
-                } catch (err: any) {
-                  logError(err);
-                  setToast(
-                    `Voice stream interrupted: ${err?.message || "network error"}`,
-                  );
-                  if (audioUrlRef.current) {
-                    URL.revokeObjectURL(audioUrlRef.current);
-                    audioUrlRef.current = null;
-                  }
-                }
-              };
-              pump();
-            });
-          } else {
-            URL.revokeObjectURL(url);
-          }
-        } catch (err) {
-          logError(err);
-          setToast("Voice failed");
-          push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
-        }
-      } else {
-        setToast("Voice failed");
-        push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
-      }
     }
   }
 

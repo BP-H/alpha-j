@@ -23,7 +23,7 @@ export type AskResult =
   | { ok: false; error: string };
 
 export type AskVoiceResult =
-  | { ok: true; stream: ReadableStream<Uint8Array>; type: string }
+  | { ok: true; audio: Uint8Array; type: string; text?: string }
   | { ok: false; error: string };
 
 const warnOnce = (() => {
@@ -127,7 +127,7 @@ export async function askLLM(
 }
 
 export async function askLLMVoice(
-  prompt: string,
+  command: string,
   ctx?: AssistantCtx,
 ): Promise<AskVoiceResult> {
   const apiKey = getKey("openai");
@@ -138,74 +138,60 @@ export async function askLLMVoice(
 
   const payload: { apiKey: string; prompt: string; ctx?: AssistantCtx } = {
     apiKey,
-    prompt,
+    prompt: command,
   };
   if (ctx) payload.ctx = ctx;
 
-  const retries = 2;
-  for (let attempt = 0; attempt <= retries; attempt++) {
-    const ac = new AbortController();
-    const timeout = setTimeout(() => ac.abort(), 15_000);
-    try {
-      const res = await fetch("/api/assistant-voice", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(payload),
-        signal: ac.signal,
-      });
-      clearTimeout(timeout);
+  const ac = new AbortController();
+  const timeout = setTimeout(() => ac.abort(), 15_000);
+  try {
+    const res = await fetch("/api/assistant-voice", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: ac.signal,
+    });
+    clearTimeout(timeout);
 
-      if (!res.ok) {
-        const msg = await parseError(res);
-        const toast = `Assistant voice request failed: ${msg}`;
-        bus.emit?.("toast", { message: toast });
-        console.error("assistant voice request failed:", msg);
-        bus.emit?.("notify", toast);
-        return { ok: false, error: msg };
-      }
-
-      const type = res.headers.get("content-type") || "";
-      if (!type.startsWith("audio/")) {
-        const msg = await parseError(res);
-        const toast = `Assistant voice request failed: ${msg}`;
-        bus.emit?.("toast", { message: toast });
-        console.error("assistant voice request failed:", msg);
-        bus.emit?.("notify", toast);
-        return { ok: false, error: msg || "invalid content type" };
-      }
-
-      const body = res.body as ReadableStream<Uint8Array> | null;
-      if (!body || typeof (body as any).getReader !== "function") {
-        const msg = "invalid response body";
-        const toast = `Assistant voice request failed: ${msg}`;
-        bus.emit?.("toast", { message: toast });
-        console.error("assistant voice request failed:", msg);
-        bus.emit?.("notify", toast);
-        return { ok: false, error: msg };
-      }
-
-      return { ok: true, stream: body, type };
-    } catch (e: any) {
-      clearTimeout(timeout);
-      const rawMsg = e?.message || "request failed";
-      const msg = /network/i.test(rawMsg)
-        ? "network error, please check your connection"
-        : rawMsg;
-      if (attempt < retries) {
-        console.warn(
-          `assistant voice request failed (attempt ${attempt + 1}): ${msg}`,
-        );
-        continue;
-      }
+    if (!res.ok) {
+      const msg = await parseError(res);
       const toast = `Assistant voice request failed: ${msg}`;
       bus.emit?.("toast", { message: toast });
       console.error("assistant voice request failed:", msg);
       bus.emit?.("notify", toast);
       return { ok: false, error: msg };
     }
-  }
 
-  return { ok: false, error: "request failed" };
+    const data = await res.json();
+    const type = data?.type || "audio/mpeg";
+    const b64 = data?.audio;
+    if (!b64 || typeof b64 !== "string") {
+      const msg = data?.error || "invalid response";
+      const toast = `Assistant voice request failed: ${msg}`;
+      bus.emit?.("toast", { message: toast });
+      console.error("assistant voice request failed:", msg);
+      bus.emit?.("notify", toast);
+      return { ok: false, error: msg };
+    }
+
+    const binaryString = atob(b64);
+    const len = binaryString.length;
+    const bytes = new Uint8Array(len);
+    for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
+
+    return { ok: true, audio: bytes, type, text: data?.text };
+  } catch (e: any) {
+    clearTimeout(timeout);
+    const rawMsg = e?.message || "request failed";
+    const msg = /network/i.test(rawMsg)
+      ? "network error, please check your connection"
+      : rawMsg;
+    const toast = `Assistant voice request failed: ${msg}`;
+    bus.emit?.("toast", { message: toast });
+    console.error("assistant voice request failed:", msg);
+    bus.emit?.("notify", toast);
+    return { ok: false, error: msg };
+  }
 }
 
 export async function imageToVideo(
