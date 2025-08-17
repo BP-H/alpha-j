@@ -19,7 +19,11 @@
   cursor: grab;
   overflow: hidden;
   background: var(--orb-bg);
-  box-shadow: var(--orb-shadow), 0 0 0 8px var(--orb-ring);
+  box-shadow:
+    0 0 10px color-mix(in srgb, var(--orb-color) 60%, transparent),
+    0 0 30px color-mix(in srgb, var(--orb-color) 30%, transparent),
+    var(--orb-shadow), 0 0 0 8px var(--orb-ring);
+  animation: orbPulse 3s ease-in-out infinite;
   backdrop-filter: blur(14px) saturate(140%);
   transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
   touch-action: none;
@@ -35,6 +39,7 @@
 }
 
 .assistant-orb__core {
+  position: relative;
   width: calc(var(--orb-size) - 20px);
   height: calc(var(--orb-size) - 20px);
   border-radius: 50%;
@@ -44,7 +49,35 @@
     color-mix(in srgb, #fff 30%, var(--orb-color) 70%) 65%,
     transparent 70%
   );
+  overflow: hidden;
   transition: background 0.3s ease, transform 0.3s ease;
+}
+
+.assistant-orb__core::before {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--orb-color), transparent 120deg);
+  animation: orbSpin 4s linear infinite;
+  mix-blend-mode: screen;
+  filter: blur(12px);
+}
+
+.assistant-orb__core::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  border-radius: 50%;
+  background: repeating-conic-gradient(
+    from 0deg,
+    color-mix(in srgb, var(--orb-color) 80%, transparent) 0deg 20deg,
+    transparent 20deg 40deg
+  );
+  animation: orbSpin 6s linear infinite reverse;
+  mix-blend-mode: screen;
+  filter: blur(18px);
+  opacity: 0.5;
 }
 
 .assistant-orb__ring {
@@ -66,6 +99,27 @@
   }
   100% {
     box-shadow: 0 0 0 28px rgba(0, 0, 0, 0);
+  }
+}
+
+@keyframes orbSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes orbPulse {
+  0%, 100% {
+    box-shadow:
+      0 0 10px color-mix(in srgb, var(--orb-color) 60%, transparent),
+      0 0 30px color-mix(in srgb, var(--orb-color) 30%, transparent),
+      var(--orb-shadow), 0 0 0 8px var(--orb-ring);
+  }
+  50% {
+    box-shadow:
+      0 0 20px color-mix(in srgb, var(--orb-color) 80%, transparent),
+      0 0 50px color-mix(in srgb, var(--orb-color) 50%, transparent),
+      var(--orb-shadow), 0 0 0 8px var(--orb-ring);
   }
 }
 
