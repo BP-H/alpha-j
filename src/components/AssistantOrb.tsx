@@ -326,7 +326,7 @@ export default function AssistantOrb() {
               const pump = async (): Promise<void> => {
                 try {
                   const { value, done } = await reader.read();
-                  if (done) {
+                  if (done || !value) {
                     if (!sourceBuffer.updating) mediaSource.endOfStream();
                     else
                       sourceBuffer.addEventListener(
@@ -338,7 +338,8 @@ export default function AssistantOrb() {
                   }
                   loaded += value.byteLength;
                   bus.emit?.("voice:progress", { loaded });
-                  sourceBuffer.appendBuffer(value);
+                  // value is a Uint8Array; append its underlying ArrayBuffer
+                  sourceBuffer.appendBuffer(value.buffer as ArrayBuffer);
                   await new Promise((r) =>
                     sourceBuffer.addEventListener("updateend", r, { once: true }),
                   );
