@@ -1,14 +1,6 @@
 // src/lib/api.ts
 import { getKey } from "./secureStore";
-import bus from "./bus";
-
-let warned = false;
-function warnOnce(msg: string) {
-  if (warned) return;
-  warned = true;
-  console.warn(msg);
-  bus.emit("notify", msg);
-}
+import { warnMissingKey } from "./warnOnce";
 
 interface AssistantReplyPayload {
   prompt: string;
@@ -35,7 +27,7 @@ export async function assistantReply(
   prompt: string,
 ): Promise<AssistantReplyResult> {
   const apiKey = getKey("openai") || getKey("sn2177.apiKey");
-  if (!apiKey) warnOnce("Missing OpenAI API key");
+  if (!apiKey) warnMissingKey("openai", "Missing OpenAI API key");
 
   const payload: AssistantReplyPayload = { prompt };
   if (apiKey) payload.apiKey = apiKey;

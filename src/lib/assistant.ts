@@ -2,6 +2,7 @@
 import type { AssistantMessage, RemixSpec } from "../types";
 import bus from "./bus";
 import { getKey } from "./secureStore";
+import { warnMissingKey } from "./warnOnce";
 
 type AssistantCtx = {
   postId?: string | number;
@@ -23,15 +24,6 @@ export type AskVoiceResult =
   | { ok: true; stream: ReadableStream<Uint8Array> }
   | { ok: false; error: string };
 
-const warnOnce = (() => {
-  let warned = false;
-  return (msg: string) => {
-    if (!warned) {
-      warned = true;
-      bus.emit?.("notify", msg);
-    }
-  };
-})();
 
 async function parseError(res: Response): Promise<string> {
   try {
@@ -121,7 +113,7 @@ export async function askLLMVoice(
 ): Promise<AskVoiceResult> {
   const apiKey = getKey("openai") || getKey("sn2177.apiKey");
   if (!apiKey) {
-    warnOnce("Missing OpenAI API key");
+    warnMissingKey("openai", "Missing OpenAI API key");
     return { ok: false, error: "missing api key" };
   }
 
