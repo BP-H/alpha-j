@@ -74,14 +74,20 @@ export default function AssistantOrb() {
     };
   });
   const setPos = (v: React.SetStateAction<{ x: number; y: number }>) => {
-    if (mountedRef.current) _setPos(v);
+    if (mountedRef.current) {
+      _setPos(v);
+      requestAnimationFrame(updateAnchors);
+    }
   };
   const posRef = useRef<{ x: number; y: number }>({ ...pos });
 
   // UI
   const [open, _setOpen] = useState(false);       // chat panel
   const setOpen = (v: React.SetStateAction<boolean>) => {
-    if (mountedRef.current) _setOpen(v);
+    if (mountedRef.current) {
+      _setOpen(v);
+      requestAnimationFrame(updateAnchors);
+    }
   };
   const [mic, _setMic] = useState(false);
   const setMic = (v: React.SetStateAction<boolean>) => {
@@ -599,7 +605,8 @@ export default function AssistantOrb() {
   }, [menuOpen]);
 
   useEffect(() => {
-    const onResize = () => {
+    let resizeTimer: number | null = null;
+    const handleResize = () => {
       if (typeof window === "undefined") return;
       const nx = clamp(posRef.current.x, ORB_MARGIN, window.innerWidth - ORB_SIZE - ORB_MARGIN);
       const ny = clamp(posRef.current.y, ORB_MARGIN, window.innerHeight - ORB_SIZE - ORB_MARGIN);
@@ -607,6 +614,10 @@ export default function AssistantOrb() {
       setPos({ x: nx, y: ny });
       applyTransform(nx, ny);
       updateAnchors();
+    };
+    const onResize = () => {
+      if (resizeTimer != null) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(handleResize, 100);
     };
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -619,8 +630,14 @@ export default function AssistantOrb() {
     };
 
     window.addEventListener("resize", onResize);
+    window.addEventListener("orientationchange", onResize);
     window.addEventListener("keydown", onKey);
-    return () => { window.removeEventListener("resize", onResize); window.removeEventListener("keydown", onKey); };
+    return () => {
+      window.removeEventListener("resize", onResize);
+      window.removeEventListener("orientationchange", onResize);
+      window.removeEventListener("keydown", onKey);
+      if (resizeTimer != null) window.clearTimeout(resizeTimer);
+    };
   }, []);
 
   useEffect(() => {
