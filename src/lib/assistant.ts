@@ -3,10 +3,11 @@ import type { AssistantMessage, RemixSpec } from "../types";
 import bus from "./bus";
 import { getKey } from "./secureStore";
 
-type AssistantCtx = {
+export type AssistantCtx = {
   postId?: string | number;
   title?: string;
   text?: string;
+  imageUrl?: string;
 } | null;
 
 export type AskPayload = {

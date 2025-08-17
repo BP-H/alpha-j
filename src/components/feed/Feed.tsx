@@ -56,12 +56,35 @@ export default function Feed({ children, style }: FeedProps) {
       if (best) {
         const id = best.node.dataset.postId!;
         const p = posts.find((pp) => String(pp.id) === id);
-        if (p) bus.emit("feed:hover", { post: p, rect: best.node.getBoundingClientRect() });
+        if (p) {
+          const rect = best.node.getBoundingClientRect();
+          const img = best.node.querySelector<HTMLImageElement>("img");
+          const imageUrl = img?.currentSrc || img?.src || undefined;
+          const imageAlt = img?.alt || "";
+          const selection = window.getSelection()?.toString() || "";
+          bus.emit("feed:hover", { post: p, rect, selection, imageUrl, imageAlt });
+        }
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
+  }, [posts]);
+
+  // feed:select-id -> feed:select (emit details for specific post)
+  useEffect(() => {
+    const off = bus.on?.("feed:select-id", ({ id }: { id: string | number }) => {
+      const elPost = document.querySelector<HTMLElement>(`[data-post-id="${id}"]`);
+      const p = posts.find((pp) => String(pp.id) === String(id));
+      if (!elPost || !p) return;
+      const rect = elPost.getBoundingClientRect();
+      const img = elPost.querySelector<HTMLImageElement>("img");
+      const imageUrl = img?.currentSrc || img?.src || undefined;
+      const imageAlt = img?.alt || "";
+      const selection = window.getSelection()?.toString() || "";
+      bus.emit("feed:select", { post: p, rect, selection, imageUrl, imageAlt });
+    });
+    return () => off?.();
   }, [posts]);
 
   return (

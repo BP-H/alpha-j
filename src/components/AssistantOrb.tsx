@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import bus from "../lib/bus";
 import { logError } from "../lib/logger";
-import { askLLM, askLLMVoice } from "../lib/assistant";
+import { askLLM, askLLMVoice, type AssistantCtx } from "../lib/assistant";
 import type { AssistantMessage, Post } from "../types";
 import RadialMenu from "./RadialMenu";
 import { HOLD_MS } from "./orbConstants";
@@ -139,6 +139,10 @@ export default function AssistantOrb() {
   const setCtxPostText = (v: React.SetStateAction<string>) => {
     if (mountedRef.current) _setCtxPostText(v);
   };
+  const [ctxImageUrl, _setCtxImageUrl] = useState("");
+  const setCtxImageUrl = (v: React.SetStateAction<string>) => {
+    if (mountedRef.current) _setCtxImageUrl(v);
+  };
   const [dragging, _setDragging] = useState(false);
   const setDragging = (v: React.SetStateAction<boolean>) => {
     if (mountedRef.current) _setDragging(v);
@@ -198,9 +202,11 @@ export default function AssistantOrb() {
 
   // feed context
   useEffect(() => {
-    const onCtx = (p: { post: Post }) => {
+    const onCtx = (p: { post: Post; selection?: string; imageUrl?: string; imageAlt?: string }) => {
       setCtxPost(p.post);
-      setCtxPostText(getPostText(p.post));
+      const txt = p.selection || getPostText(p.post) || p.imageAlt || "";
+      setCtxPostText(txt);
+      setCtxImageUrl(p.imageUrl || "");
     };
     const offHover = bus.on?.("feed:hover", onCtx);
     const offSelect = bus.on?.("feed:select", onCtx);
@@ -314,17 +320,27 @@ export default function AssistantOrb() {
       return;
     }
 
-    // Ask the model with optional post context (id, title, and visible text)
-    const resp = await askLLM(
-      T,
-      post
+    // Ask the model with optional post context (id, title, selected text, image)
+    const selection =
+      typeof window !== "undefined"
+        ? window.getSelection()?.toString().trim() || ""
+        : "";
+    const ctxText = selection || ctxPostText || getPostText(post);
+    const ctx: AssistantCtx | null =
+      post || ctxText || ctxImageUrl
         ? {
-            postId: post.id as unknown as string | number,
-            title: (post as any)?.title,
-            text: ctxPostText || getPostText(post),
+            ...(post
+              ? {
+                  postId: post.id as unknown as string | number,
+                  title: (post as any)?.title,
+                }
+              : {}),
+            ...(ctxText ? { text: ctxText } : {}),
+            ...(ctxImageUrl ? { imageUrl: ctxImageUrl } : {}),
           }
-        : null
-    );
+        : null;
+
+    const resp = await askLLM(T, ctx);
     let replyText: string | null = null;
     if (resp.ok && resp.message) {
       push(resp.message);
@@ -344,16 +360,7 @@ export default function AssistantOrb() {
       const id = ++inFlightIdRef.current;
       audioRef.current?.pause();
 
-      const streamResp = await askLLMVoice(
-        replyText,
-        post
-          ? {
-              postId: post.id as unknown as string | number,
-              title: (post as any)?.title,
-              text: ctxPostText || getPostText(post),
-            }
-          : null
-      );
+      const streamResp = await askLLMVoice(replyText, ctx);
       if (id !== inFlightIdRef.current) return;
       if (streamResp.ok) {
         try {
