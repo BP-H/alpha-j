@@ -59,47 +59,6 @@ async function parseError(res: Response): Promise<string> {
   }
 }
 
-async function readAudioStream(res: Response): Promise<{
-  bytes: Uint8Array;
-  url: string;
-  type: string;
-}> {
-  const reader = res.body?.getReader();
-  if (!reader) throw new Error("no response body");
-
-  const chunks: Uint8Array[] = [];
-  let received = 0;
-  const total = Number(res.headers.get("content-length") || 0);
-  if (total) bus.emit?.("voice:progress", { buffered: 0 });
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    if (value) {
-      chunks.push(value);
-      received += value.length;
-      if (total) {
-        bus.emit?.("voice:progress", { buffered: received / total });
-      }
-    }
-  }
-
-  if (total) bus.emit?.("voice:progress", { buffered: 1 });
-
-  const bytes = new Uint8Array(received);
-  let offset = 0;
-  for (const c of chunks) {
-    bytes.set(c, offset);
-    offset += c.length;
-  }
-  const type = res.headers.get("content-type") || "audio/mpeg";
-  // Convert to ArrayBuffer before creating a Blob to satisfy DOM typings
-  const arrayBuffer = bytes.buffer as ArrayBuffer;
-  const blob = new Blob([arrayBuffer], { type });
-  const url = URL.createObjectURL(blob);
-  return { bytes, url, type };
-}
-
 export async function askLLM(
   input: string,
   ctx?: AssistantCtx,
@@ -209,9 +168,14 @@ export async function askLLMVoice(
       return { ok: false, error: msg };
     }
 
-    const { bytes, url, type } = await readAudioStream(res);
-    const text = res.headers.get("x-text") ?? undefined;
-    return { ok: true, audio: bytes, url, type, text };
+    const data: { audio: string; text?: string; type?: string } =
+      await res.json();
+    const type = data.type || "audio/mpeg";
+    const bytes = Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0));
+    const arrayBuffer = bytes.buffer as ArrayBuffer;
+    const blob = new Blob([arrayBuffer], { type });
+    const url = URL.createObjectURL(blob);
+    return { ok: true, audio: bytes, url, type, text: data.text };
   } catch (e: any) {
     clearTimeout(timeout);
     const rawMsg = e?.message || "request failed";
