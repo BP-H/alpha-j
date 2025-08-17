@@ -114,6 +114,9 @@
 .pc-drawer-inner{ padding:12px 14px; max-width:100%; box-sizing:border-box; }
 .pc-emoji-bar{
   display:flex;
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
   flex-wrap:nowrap;
   overflow-x:auto;
   -webkit-overflow-scrolling:touch;
