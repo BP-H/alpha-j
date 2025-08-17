@@ -43,7 +43,9 @@ export async function askLLM(
     if (res.ok) {
       const data = await res.json();
       return {
-        id: crypto.randomUUID(),
+        id:
+          globalThis.crypto?.randomUUID?.() ??
+          Math.random().toString(36).slice(2),
         role: "assistant",
         text: data.text || "ok",
         ts: Date.now(),
@@ -72,7 +74,9 @@ export async function askLLM(
 
   // offline stub so builds never fail
   return {
-    id: crypto.randomUUID(),
+    id:
+      globalThis.crypto?.randomUUID?.() ??
+      Math.random().toString(36).slice(2),
     role: "assistant",
     text: `💡 stub: “${input}”`,
     ts: Date.now(),
