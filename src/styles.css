@@ -344,3 +344,33 @@ button, input, textarea, select { font: inherit; color: inherit; }
   transition: clip-path .65s cubic-bezier(.22,.61,.36,1), opacity .2s ease;
 }
 .portal-overlay.on { --r0: 160vmax; opacity: 1; }
+
+/* =========================
+   Global Toast
+   ========================= */
+.toast-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 10000;
+}
+
+.toast {
+  background: rgba(0,0,0,.75);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,.3);
+  pointer-events: auto;
+}
+
+.toast button {
+  margin-left: 12px;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+}

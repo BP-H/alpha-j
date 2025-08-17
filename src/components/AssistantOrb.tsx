@@ -3,6 +3,7 @@ import React, { useEffect, useRef, useState } from "react";
 import bus from "../lib/bus";
 import { logError } from "../lib/logger";
 import { askLLM, askLLMVoice } from "../lib/assistant";
+import sharePost from "../lib/share";
 import type { AssistantMessage, Post } from "../types";
 import RadialMenu from "./RadialMenu";
 import { HOLD_MS } from "./orbConstants";
@@ -870,7 +871,9 @@ export default function AssistantOrb() {
                 onClick={async () => {
                   if (!ctxPost) return;
                   const url = `${location.origin}${location.pathname}#post-${ctxPost.id}`;
-                  try { await navigator.clipboard.writeText(url); setToast("Link copied"); setTimeout(() => setToast(""), 900); } catch {}
+                  const ok = await sharePost(url);
+                  setToast(ok ? "Link copied" : "Copy failed");
+                  setTimeout(() => setToast(""), 900);
                   setPetal(null);
                 }}
               >

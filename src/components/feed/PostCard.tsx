@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./postcard.css";
 import type { Post } from "../../types";
 import bus from "../../lib/bus";
+import sharePost from "../../lib/share";
 import { ensureModelViewer } from "../../lib/ensureModelViewer";
 import AmbientWorld from "../AmbientWorld";
 
@@ -107,11 +108,14 @@ export default function PostCard({ post }: { post: Post }) {
     if (src.startsWith("blob:")) try { URL.revokeObjectURL(src); } catch {}
   };
 
-  // share link (preserve old behavior)
+  // share link
   async function copyLink() {
-    if (typeof location === "undefined" || typeof navigator === "undefined") return;
-    const url = `${location.origin}${location.pathname}#post-${post.id}`;
-    try { await navigator.clipboard.writeText(url); } catch {}
+    const url =
+      typeof location !== "undefined"
+        ? `${location.origin}${location.pathname}#post-${post.id}`
+        : "";
+    const ok = await sharePost(url);
+    bus.emit?.("toast", ok ? "Link copied" : "Copy failed");
   }
 
   const handleVote = (optId: string, index: number) => {
