@@ -180,6 +180,7 @@ export default function AssistantOrb() {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioUrlRef = useRef<string | null>(null);
   const progressRafRef = useRef<number | null>(null);
+  const readerRef = useRef<ReadableStreamDefaultReader<Uint8Array> | null>(null);
   const inFlightIdRef = useRef(0);
 
   useEffect(() => {
@@ -191,8 +192,42 @@ export default function AssistantOrb() {
       }
       if (progressRafRef.current != null) {
         cancelAnimationFrame(progressRafRef.current);
+        progressRafRef.current = null;
+      }
+      if (readerRef.current) {
+        readerRef.current.cancel().catch(() => {});
+        readerRef.current = null;
       }
       audioRef.current?.pause();
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = audioRef.current;
+    if (!el) return;
+    const onDone = (e: Event) => {
+      if (progressRafRef.current != null) {
+        cancelAnimationFrame(progressRafRef.current);
+        progressRafRef.current = null;
+      }
+      if (readerRef.current) {
+        readerRef.current.cancel().catch(() => {});
+        readerRef.current = null;
+      }
+      setPlayProgress(0);
+      if (e.type === "error") setToast("Audio playback failed");
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+    };
+    el.addEventListener("ended", onDone);
+    el.addEventListener("error", onDone);
+    el.addEventListener("abort", onDone);
+    return () => {
+      el.removeEventListener("ended", onDone);
+      el.removeEventListener("error", onDone);
+      el.removeEventListener("abort", onDone);
     };
   }, []);
 
@@ -342,6 +377,18 @@ export default function AssistantOrb() {
 
     if (voiceOn && replyText) {
       const id = ++inFlightIdRef.current;
+      if (progressRafRef.current != null) {
+        cancelAnimationFrame(progressRafRef.current);
+        progressRafRef.current = null;
+      }
+      if (readerRef.current) {
+        readerRef.current.cancel().catch(() => {});
+        readerRef.current = null;
+      }
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
       audioRef.current?.pause();
 
       const streamResp = await askLLMVoice(
@@ -372,13 +419,21 @@ export default function AssistantOrb() {
             setPlayProgress(0);
 
             mediaSource.addEventListener("sourceopen", () => {
+              if (id !== inFlightIdRef.current) return;
               const sourceBuffer = mediaSource.addSourceBuffer(mime);
               const reader = streamResp.stream.getReader();
+              readerRef.current = reader;
               let loaded = 0;
               const pump = async (): Promise<void> => {
+                if (id !== inFlightIdRef.current) return;
                 try {
                   const { value, done } = await reader.read();
+                  if (id !== inFlightIdRef.current) {
+                    reader.cancel().catch(() => {});
+                    return;
+                  }
                   if (done) {
+                    readerRef.current = null;
                     if (!sourceBuffer.updating) mediaSource.endOfStream();
                     else
                       sourceBuffer.addEventListener(
@@ -404,6 +459,7 @@ export default function AssistantOrb() {
                   }
                   pump();
                 } catch (err: any) {
+                  readerRef.current = null;
                   logError(err);
                   setToast(
                     `Voice stream interrupted: ${err?.message || "network error"}`,
@@ -795,26 +851,6 @@ export default function AssistantOrb() {
             progressRafRef.current = requestAnimationFrame(() => {
               setPlayProgress(el.currentTime / el.duration);
             });
-          }
-        }}
-        onEnded={() => {
-          if (progressRafRef.current != null) {
-            cancelAnimationFrame(progressRafRef.current);
-          }
-          setPlayProgress(1);
-          if (audioUrlRef.current) {
-            URL.revokeObjectURL(audioUrlRef.current);
-            audioUrlRef.current = null;
-          }
-        }}
-        onError={() => {
-          if (progressRafRef.current != null) {
-            cancelAnimationFrame(progressRafRef.current);
-          }
-          setToast("Audio playback failed");
-          if (audioUrlRef.current) {
-            URL.revokeObjectURL(audioUrlRef.current);
-            audioUrlRef.current = null;
           }
         }}
       />
