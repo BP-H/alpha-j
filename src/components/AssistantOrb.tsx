@@ -143,6 +143,17 @@ export default function AssistantOrb() {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const msgListRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const inFlightIdRef = useRef(0);
+  const timeRafRef = useRef<number | null>(null);
+  const aliveRef = useRef(true);
+  useEffect(() => {
+    return () => {
+      aliveRef.current = false;
+      if (timeRafRef.current !== null) cancelAnimationFrame(timeRafRef.current);
+      if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+    };
+  }, []);
 
   // feed context
   useEffect(() => {
@@ -263,7 +274,7 @@ export default function AssistantOrb() {
     }
 
     // Ask the model with optional post context (id, title, and visible text)
-    const resp = await askLLM(
+    const result = await askLLM(
       T,
       post
         ? {
@@ -273,10 +284,25 @@ export default function AssistantOrb() {
           }
         : null
     );
-    push(resp);
+    if (result.ok && result.message) {
+      push(result.message);
+    } else {
+      push({ id: uuid(), role: "assistant", text: `⚠️ ${result.error || "Failed"}`, ts: Date.now(), postId: post?.id ?? null });
+      return;
+    }
 
     if (voiceOn) {
-      const stream = await askLLMVoice(
+      const reqId = ++inFlightIdRef.current;
+      const el = audioRef.current;
+      if (el) {
+        el.pause();
+        el.currentTime = 0;
+      }
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+      const voice = await askLLMVoice(
         T,
         post
           ? {
@@ -286,11 +312,12 @@ export default function AssistantOrb() {
             }
           : null
       );
-      if (stream) {
+      if (!aliveRef.current || reqId !== inFlightIdRef.current) return;
+      if (voice.ok && voice.stream) {
         try {
-          const blob = await new Response(stream).blob();
+          const blob = await new Response(voice.stream).blob();
           const url = URL.createObjectURL(blob);
-          const el = audioRef.current;
+          audioUrlRef.current = url;
           if (el) {
             el.src = url;
             setPlayProgress(0);
@@ -298,17 +325,17 @@ export default function AssistantOrb() {
               await el.play();
             } catch (err) {
               logError(err);
-              setToast("Audio playback failed");
+              if (aliveRef.current) setToast("Audio playback failed");
             }
           }
         } catch (err) {
           logError(err);
-          setToast("Voice failed");
+          if (aliveRef.current) setToast("Voice failed");
           push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
         }
       } else {
-        setToast("Voice failed");
-        push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
+        if (aliveRef.current) setToast("Voice failed");
+        push({ id: uuid(), role: "assistant", text: `🔇 ${voice.error || "Voice unavailable"}`, ts: Date.now(), postId: post?.id ?? null });
       }
     }
   }
@@ -655,18 +682,26 @@ export default function AssistantOrb() {
     }
   }
 
+  const onAudioTimeUpdate = (e: React.SyntheticEvent<HTMLAudioElement>) => {
+    if (timeRafRef.current !== null) return;
+    const el = e.currentTarget;
+    timeRafRef.current = requestAnimationFrame(() => {
+      timeRafRef.current = null;
+      if (aliveRef.current && el.duration) {
+        setPlayProgress(el.currentTime / el.duration);
+      }
+    });
+  };
+
   return (
     <>
       <style>{keyframes}</style>
       <audio
         ref={audioRef}
         style={{ display: "none" }}
-        onTimeUpdate={e => {
-          const el = e.currentTarget;
-          if (el.duration) setPlayProgress(el.currentTime / el.duration);
-        }}
-        onEnded={() => setPlayProgress(1)}
-        onError={() => setToast("Audio playback failed")}
+        onTimeUpdate={onAudioTimeUpdate}
+        onEnded={() => { if (aliveRef.current) setPlayProgress(1); }}
+        onError={() => { if (aliveRef.current) setToast("Audio playback failed"); }}
       />
 
       <button
@@ -764,6 +799,7 @@ export default function AssistantOrb() {
               onClick={() => setVoiceOn(v => !v)}
               style={{ marginLeft: "auto", height: 28, padding: "0 10px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.16)" }}
               aria-label={voiceOn ? "Mute voice" : "Enable voice"}
+              aria-pressed={voiceOn}
               title={voiceOn ? "Mute voice" : "Enable voice"}
             >
               {voiceOn ? "🔊" : "🔇"}
@@ -772,7 +808,13 @@ export default function AssistantOrb() {
           </div>
 
           {voiceOn && (
-            <div style={{ height: 4, background: "rgba(255,255,255,.12)", marginBottom: 8 }}>
+            <div
+              style={{ height: 4, background: "rgba(255,255,255,.12)", marginBottom: 8 }}
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={1}
+              aria-valuenow={playProgress}
+            >
               <div style={{ width: `${playProgress * 100}%`, height: "100%", background: "#fff", transition: "width .1s linear" }} />
             </div>
           )}

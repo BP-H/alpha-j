@@ -1,4 +1,5 @@
 // src/lib/api.ts
+import bus from "./bus";
 import { getKey } from "./secureStore";
 
 interface AssistantReplyJson {
@@ -19,18 +20,45 @@ interface PlayersJson {
   error?: string;
 }
 
+interface AssistantReplyPayload {
+  apiKey: string;
+  prompt: string;
+}
+
+const warned = new Set<string>();
+function warnMissingKey(msg: string) {
+  if (!warned.has(msg)) {
+    warned.add(msg);
+    console.warn(msg);
+    bus.emit("toast", msg);
+  }
+}
+
 export async function assistantReply(
   prompt: string,
 ): Promise<{ ok: boolean; text?: string; error?: string }> {
-  const apiKey = getKey("sn2177.apiKey");
+  const apiKey = getKey("openai") || getKey("sn2177.apiKey");
+  if (!apiKey) {
+    warnMissingKey("OpenAI API key not set");
+    return { ok: false, error: "missing api key" };
+  }
+  const payload: AssistantReplyPayload = { apiKey, prompt };
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
     const r = await fetch("/api/assistant-reply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey, prompt }), // — 'prompt' shape
+      body: JSON.stringify(payload),
+      signal: controller.signal,
     });
     if (!r.ok) {
-      return { ok: false, error: `HTTP ${r.status}` };
+      let err: any = null;
+      try {
+        err = await r.json();
+      } catch {}
+      const msg = err?.error || (await r.text().catch(() => `HTTP ${r.status}`));
+      return { ok: false, error: msg };
     }
     let data: AssistantReplyJson;
     try {
@@ -46,6 +74,8 @@ export async function assistantReply(
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Network error";
     return { ok: false, error: message };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
