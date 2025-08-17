@@ -154,16 +154,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       const message = data?.error?.message || "Failed";
       return res.status(r.status).json({ ok: false, error: message });
     }
-
     const output = data?.output || [];
-    let text = "";
+    const text = data.output_text?.trim() ?? "";
     let audioB64 = "";
     for (const part of output) {
       if (Array.isArray(part?.content)) {
         for (const c of part.content) {
-          if (c.type === "text" && typeof c.text === "string") {
-            text += c.text;
-          } else if (c.type === "audio" && c.audio?.data) {
+          if (c.type === "audio" && c.audio?.data) {
             audioB64 = c.audio.data;
           }
         }
