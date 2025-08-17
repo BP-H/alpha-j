@@ -60,21 +60,33 @@ export async function sharePost(arg: Post | ShareOptions | string): Promise<bool
   }
 
   // Legacy execCommand fallback
+  // TODO: Remove once navigator.clipboard has broader support.
   if (typeof document === "undefined") return false;
 
   const ta = document.createElement("textarea");
   try {
+    if (!document.body) {
+      console.error("sharePost: document.body is not available");
+      return false;
+    }
+
     ta.value = url;
     ta.style.position = "fixed";
     ta.style.opacity = "0";
     document.body.appendChild(ta);
     ta.select();
-    document.execCommand("copy");
-    return true;
-  } catch {
+    const success = document.execCommand("copy");
+    if (!success) {
+      console.error("sharePost: copy command failed");
+    }
+    return success;
+  } catch (err) {
+    console.error("sharePost: unable to copy", err);
     return false;
   } finally {
-    document.body.removeChild(ta);
+    if (document.body && ta.parentNode === document.body) {
+      document.body.removeChild(ta);
+    }
   }
 }
 
