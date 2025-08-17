@@ -72,7 +72,7 @@ export default function RadialMenu(props: RadialMenuProps) {
   } = props;
 
   const menuRef = useRef<HTMLDivElement | null>(null);
-  const [subMenu, setSubMenu] = useState<"react" | "create" | null>(null);
+  const [subMenu, setSubMenu] = useState<"react" | null>(null);
   const [index, setIndex] = useState(0);
   const reduceMotion = useReducedMotion();
 
@@ -135,34 +135,6 @@ export default function RadialMenu(props: RadialMenuProps) {
         },
       },
       { id: "react", label: "React", icon: "👏", next: "react" as const },
-      { id: "create", label: "Create", icon: "✍️", next: "create" as const },
-      {
-        id: "profile",
-        label: "Profile",
-        icon: (
-          <img
-            src={avatarUrl}
-            alt=""
-            aria-hidden="true"
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
-        ),
-        action: () => {
-          onProfile();
-          onClose();
-        },
-      },
-    ],
-    react: emojis.map((e, i) => ({
-      id: `emoji-${i}`,
-      label: `React ${e}`,
-      icon: e,
-      action: () => {
-        onReact(e);
-        onClose();
-      },
-    })),
-    create: [
       {
         id: "comment",
         label: "Comment",
@@ -190,15 +162,35 @@ export default function RadialMenu(props: RadialMenuProps) {
           onClose();
         },
       },
+      {
+        id: "profile",
+        label: "Profile",
+        icon: (
+          <img
+            src={avatarUrl}
+            alt=""
+            aria-hidden="true"
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
+          />
+        ),
+        action: () => {
+          onProfile();
+          onClose();
+        },
+      },
     ],
+    react: emojis.map((e, i) => ({
+      id: `emoji-${i}`,
+      label: `React ${e}`,
+      icon: e,
+      action: () => {
+        onReact(e);
+        onClose();
+      },
+    })),
   } as const;
 
-  const ringItems =
-    subMenu === null
-      ? menuConfig.root
-      : subMenu === "react"
-      ? menuConfig.react
-      : menuConfig.create;
+  const ringItems = subMenu === null ? menuConfig.root : menuConfig.react;
 
   const centerItem =
     subMenu === null
