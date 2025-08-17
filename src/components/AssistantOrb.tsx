@@ -9,6 +9,7 @@ import RadialMenu from "./RadialMenu";
 import { HOLD_MS } from "./orbConstants";
 import { motion, useReducedMotion } from "framer-motion";
 import { EMOJI_LIST } from "../lib/emojis";
+import { getKey } from "../lib/secureStore";
 
 /**
  * Assistant Orb — circular quick menu + 60fps drag + voice.
@@ -287,6 +288,19 @@ export default function AssistantOrb() {
             ...(images.length ? { images } : {}),
           }
         : null;
+    const apiKey = getKey("openai");
+    if (!apiKey) {
+      bus.emit?.("sidebar:open");
+      setToast("Please set your OpenAI API key in the sidebar");
+      push({
+        id: uuid(),
+        role: "assistant",
+        text: "⚠️ Please set your OpenAI API key in the sidebar.",
+        ts: Date.now(),
+        postId: post?.id ?? null,
+      });
+      return;
+    }
 
     const resp = await askLLM(T, ctx);
     let replyText: string | null = null;
