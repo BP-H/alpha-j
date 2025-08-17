@@ -51,3 +51,28 @@ To preview the sample posts included in [`src/lib/placeholders.ts`](src/lib/plac
 2. Redeploy the project.
 
 When `VITE_DEMO=1` is set, the app displays the placeholder posts defined in `src/lib/placeholders.ts`.
+
+## Model Viewer integrity
+
+The app loads `@google/model-viewer` at runtime with a Subresource Integrity (SRI) check.
+If the CDN copy fails to load, a vetted fallback bundled at
+`public/vendor/model-viewer.min.js` is used instead.
+
+To regenerate the SRI hash after upgrading `model-viewer`:
+
+1. Download the package and extract the bundle:
+
+   ```bash
+   npm pack @google/model-viewer@<version> --silent
+   tar -xzf google-model-viewer-<version>.tgz
+   ```
+
+2. Compute the SHA‑384 hash:
+
+   ```bash
+   openssl dgst -sha384 -binary package/dist/model-viewer.min.js | openssl base64 -A
+   ```
+
+3. Prefix the result with `sha384-` and update `REMOTE_SRI` in
+   [`src/lib/ensureModelViewer.ts`](src/lib/ensureModelViewer.ts).
+4. Replace `public/vendor/model-viewer.min.js` with the new build.
