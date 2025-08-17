@@ -20,13 +20,16 @@ import { getKey } from "../lib/secureStore";
  */
 
 
-const ORB_SIZE = 76;
-const ORB_MARGIN = 12;
-const DRAG_THRESHOLD = 5;
-const PANEL_WIDTH = 360;
-const STORAGE_KEY = "assistantOrbPos.v6";
-
 const clamp = (n: number, a: number, b: number) => Math.min(b, Math.max(a, n));
+
+// Derive sizes from the viewport rather than hard-coded pixels so the orb
+// scales sensibly on phones and large screens. Use fallbacks for SSR/tests.
+const vw = typeof window === "undefined" ? 1024 : window.innerWidth;
+const ORB_SIZE = clamp(vw * 0.1, 56, 76);            // 10vw, min 56px, max 76px
+const ORB_MARGIN = clamp(vw * 0.02, 8, 16);          // 2vw, min 8px
+const DRAG_THRESHOLD = clamp(vw * 0.01, 4, 10);      // 1vw, min 4px
+const PANEL_WIDTH = clamp(vw * 0.8, 260, 360);       // 80vw, max 360px
+const STORAGE_KEY = "assistantOrbPos.v6";
 const uuid = () => {
   try {
     return globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
@@ -633,6 +636,11 @@ export default function AssistantOrb() {
   const keyframes = `
     @keyframes panelIn { from { opacity: 0; transform: scale(.97) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
   `;
+
+  const isSmall =
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(max-width: 480px)").matches;
   const orbStyle: React.CSSProperties = {
     position: "fixed",
     left: 0, top: 0,
@@ -647,17 +655,19 @@ export default function AssistantOrb() {
       ? "0 18px 44px rgba(255,116,222,0.24), 0 0 0 12px rgba(255,116,222,0.12)"
       : "0 12px 30px rgba(0,0,0,.35)",
     willChange: "transform",
-    transition: dragging ? "none" : "box-shadow .2s ease, filter .2s ease",
+    backdropFilter: "blur(14px) saturate(140%)",
+    WebkitBackdropFilter: "blur(14px) saturate(140%)",
+    transition: reduceMotion || dragging ? "none" : "box-shadow .2s ease, filter .2s ease",
     cursor: dragging ? "grabbing" : "grab",
     transform: `translate3d(${pos.x}px, ${pos.y}px, 0)`,
   };
   const coreStyle: React.CSSProperties = {
-    width: 56, height: 56, borderRadius: 999,
+    width: ORB_SIZE - 20, height: ORB_SIZE - 20, borderRadius: 999,
     background: "radial-gradient(60% 60% at 40% 35%, rgba(255,255,255,.95), rgba(255,255,255,.28) 65%, transparent 70%)",
     pointerEvents: "none",
   };
   const ringStyle: React.CSSProperties = {
-    position: "absolute", inset: -6, borderRadius: 999, pointerEvents: "none",
+    position: "absolute", inset: -(ORB_SIZE * 0.08), borderRadius: 999, pointerEvents: "none",
   };
   const overlayStyle: React.CSSProperties = {
     position: "fixed",
@@ -668,23 +678,26 @@ export default function AssistantOrb() {
     position: "fixed",
     background: "rgba(0,0,0,.7)",
     color: "#fff",
-    padding: "6px 10px",
-    borderRadius: 10,
-    fontSize: 13,
+    padding: isSmall ? "4px 6px" : "6px 10px",
+    borderRadius: isSmall ? 8 : 10,
+    fontSize: isSmall ? 11 : 13,
     zIndex: 9998,
     pointerEvents: "none",
   };
   const panelStyle: React.CSSProperties = {
     position: "fixed",
-    width: PANEL_WIDTH, maxWidth: "90vw",
+    width: PANEL_WIDTH,
+    maxWidth: "90vw",
     background: "linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.02))",
     border: "1px solid rgba(255,255,255,.06)",
-    borderRadius: 14,
-    padding: 12,
+    borderRadius: isSmall ? 10 : 14,
+    padding: isSmall ? 8 : 12,
+    fontSize: isSmall ? 14 : 16,
     zIndex: 9998,
     boxShadow: "0 16px 40px rgba(0,0,0,.45)",
     backdropFilter: "blur(10px) saturate(140%)",
-    animation: "panelIn .2s ease-out",
+    WebkitBackdropFilter: "blur(10px) saturate(140%)",
+    animation: reduceMotion ? undefined : "panelIn .2s ease-out",
   };
 
   function handleOrbKeyDown(e: React.KeyboardEvent) {
