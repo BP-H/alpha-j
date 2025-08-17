@@ -271,7 +271,7 @@ export default function AssistantOrb() {
         : null
     );
     let replyText: string | null = null;
-    if (resp.ok && resp.message) {
+    if (resp.ok) {
       push(resp.message);
       replyText = resp.message.text;
     } else {
@@ -335,7 +335,7 @@ export default function AssistantOrb() {
                   }
                   loaded += value.byteLength;
                   bus.emit?.("voice:progress", { loaded });
-                  sourceBuffer.appendBuffer(value);
+                  sourceBuffer.appendBuffer(value as unknown as BufferSource);
                   await new Promise((r) =>
                     sourceBuffer.addEventListener("updateend", r, { once: true }),
                   );
