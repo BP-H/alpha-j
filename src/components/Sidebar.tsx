@@ -3,6 +3,11 @@ import { NavLink } from "react-router-dom";
 import "./Sidebar.css";
 import bus from "../lib/bus";
 import { useTheme } from "../lib/useTheme";
+import {
+  getKey as getSecureKey,
+  setKey as setSecureKey,
+  removeKey as removeSecureKey,
+} from "../lib/secureStore";
 
 function useLocal<T>(key: string, init: T) {
   const [v, setV] = useState<T>(() => {
@@ -21,6 +26,19 @@ function useLocal<T>(key: string, init: T) {
     } catch {}
   }, [key, v]);
   return [v, setV] as const;
+}
+
+function useSecure(key: string) {
+  const [v, setV] = useState(() =>
+    typeof window === "undefined" ? "" : getSecureKey(key),
+  );
+  const update = (val: string) => {
+    setV(val);
+    if (typeof window === "undefined") return;
+    if (val) setSecureKey(key, val);
+    else removeSecureKey(key);
+  };
+  return [v, update] as const;
 }
 
 export default function Sidebar() {
@@ -68,12 +86,9 @@ export default function Sidebar() {
     document.documentElement.style.setProperty("--accent", accent);
   }, [accent]);
 
-  const [openaiKey, setOpenaiKey] = useLocal("sn.keys.openai", "");
-  const [anthropicKey, setAnthropicKey] = useLocal("sn.keys.anthropic", "");
-  const [perplexityKey, setPerplexityKey] = useLocal(
-    "sn.keys.perplexity",
-    "",
-  );
+  const [openaiKey, setOpenaiKey] = useSecure("openai");
+  const [anthropicKey, setAnthropicKey] = useSecure("anthropic");
+  const [perplexityKey, setPerplexityKey] = useSecure("perplexity");
   const [openaiDraft, setOpenaiDraft] = useState(openaiKey);
   const [anthropicDraft, setAnthropicDraft] = useState(anthropicKey);
   const [perplexityDraft, setPerplexityDraft] = useState(perplexityKey);
@@ -95,9 +110,6 @@ export default function Sidebar() {
       onClear: () => {
         setOpenaiDraft("");
         setOpenaiKey("");
-        if (typeof window !== "undefined") {
-          setTimeout(() => window.localStorage.removeItem("sn.keys.openai"), 0);
-        }
       },
     },
     {
@@ -109,12 +121,6 @@ export default function Sidebar() {
       onClear: () => {
         setAnthropicDraft("");
         setAnthropicKey("");
-        if (typeof window !== "undefined") {
-          setTimeout(
-            () => window.localStorage.removeItem("sn.keys.anthropic"),
-            0,
-          );
-        }
       },
     },
     {
@@ -126,12 +132,6 @@ export default function Sidebar() {
       onClear: () => {
         setPerplexityDraft("");
         setPerplexityKey("");
-        if (typeof window !== "undefined") {
-          setTimeout(
-            () => window.localStorage.removeItem("sn.keys.perplexity"),
-            0,
-          );
-        }
       },
     },
   ];

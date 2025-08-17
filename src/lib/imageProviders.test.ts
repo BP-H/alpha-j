@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchImages } from "./imageProviders";
+import { clearAll } from "./secureStore";
 
 describe("fetchImages", () => {
   beforeEach(() => {
     vi.resetAllMocks();
-    window.localStorage.clear();
+    clearAll();
   });
 
   it("warns once and falls back to picsum when API key is missing", async () => {

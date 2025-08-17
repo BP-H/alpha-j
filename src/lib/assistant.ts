@@ -1,5 +1,6 @@
 // src/lib/assistant.ts
 import type { AssistantMessage, RemixSpec } from "../types";
+import { getKey } from "./secureStore";
 
 type AssistantCtx = {
   postId?: string | number;
@@ -83,14 +84,7 @@ export async function askLLMVoice(
   prompt: string,
   ctx?: AssistantCtx,
 ): Promise<ReadableStream<Uint8Array> | null> {
-  let apiKey = "";
-  if (typeof window !== "undefined") {
-    try {
-      apiKey = window.localStorage.getItem("sn2177.apiKey") || "";
-    } catch {
-      apiKey = "";
-    }
-  }
+  const apiKey = getKey("sn2177.apiKey");
 
   try {
     const payload: Record<string, unknown> = { apiKey, prompt };
