@@ -79,6 +79,49 @@ export async function askLLM(
   };
 }
 
+export async function askLLMVoice(
+  prompt: string,
+  ctx?: AssistantCtx,
+): Promise<ReadableStream<Uint8Array> | null> {
+  let apiKey = "";
+  if (typeof window !== "undefined") {
+    try {
+      apiKey = window.localStorage.getItem("sn2177.apiKey") || "";
+    } catch {
+      apiKey = "";
+    }
+  }
+
+  try {
+    const payload: Record<string, unknown> = { apiKey, prompt };
+    if (ctx) payload.ctx = ctx;
+
+    const res = await fetch("/api/assistant-voice", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
+    if (!res.ok) {
+      const msg = await res.text().catch(() => "request failed");
+      console.error("assistant voice request failed:", msg);
+      if (typeof window !== "undefined") {
+        try {
+          window.alert?.(`Assistant voice request failed: ${msg}`);
+        } catch {
+          // ignore alert errors
+        }
+      }
+      return null;
+    }
+
+    return res.body as ReadableStream<Uint8Array>;
+  } catch {
+    // fall through
+  }
+  return null;
+}
+
 export async function imageToVideo(
   spec: RemixSpec
 ): Promise<{ ok: boolean; url?: string; error?: string }> {
