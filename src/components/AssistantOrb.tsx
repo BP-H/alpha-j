@@ -161,6 +161,15 @@ export default function AssistantOrb() {
     };
   }, []);
 
+  useEffect(() => {
+    const off = bus.on?.("voice:progress", (p: { buffered?: number }) => {
+      if (typeof p?.buffered === "number") {
+        setPlayProgress(p.buffered);
+      }
+    });
+    return () => off?.();
+  }, []);
+
   // feed context
   useEffect(() => {
     const onCtx = (p: { post: Post }) => {
@@ -304,6 +313,7 @@ export default function AssistantOrb() {
 
     const id = ++inFlightIdRef.current;
     audioRef.current?.pause();
+    setPlayProgress(0);
 
     const voiceResp = await askLLMVoice(T, ctx);
     if (id !== inFlightIdRef.current) return;
@@ -322,15 +332,13 @@ export default function AssistantOrb() {
         try {
           const el = audioRef.current;
           if (el) {
-            const blob = new Blob([voiceResp.audio], { type: voiceResp.type });
-            const url = URL.createObjectURL(blob);
             if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
             if (id !== inFlightIdRef.current) {
-              URL.revokeObjectURL(url);
+              URL.revokeObjectURL(voiceResp.url);
               return;
             }
-            audioUrlRef.current = url;
-            el.src = url;
+            audioUrlRef.current = voiceResp.url;
+            el.src = voiceResp.url;
             setPlayProgress(0);
             try {
               await el.play();
@@ -344,6 +352,8 @@ export default function AssistantOrb() {
           setToast("Voice failed");
           push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
         }
+      } else {
+        URL.revokeObjectURL(voiceResp.url);
       }
     } else {
       const err = voiceResp.error ?? "Unknown error";
@@ -705,13 +715,6 @@ export default function AssistantOrb() {
       <audio
         ref={audioRef}
         style={{ display: "none" }}
-        onProgress={e => {
-          const el = e.currentTarget;
-          if (el.buffered.length && el.duration) {
-            const end = el.buffered.end(el.buffered.length - 1);
-            bus.emit?.("voice:progress", { buffered: end / el.duration });
-          }
-        }}
         onTimeUpdate={e => {
           const el = e.currentTarget;
           if (el.duration) {

@@ -23,7 +23,13 @@ export type AskResult =
   | { ok: false; error: string };
 
 export type AskVoiceResult =
-  | { ok: true; audio: Uint8Array; type: string; text?: string }
+  | {
+      ok: true;
+      audio: Uint8Array;
+      url: string;
+      type: string;
+      text?: string;
+    }
   | { ok: false; error: string };
 
 const warnOnce = (() => {
@@ -51,6 +57,45 @@ async function parseError(res: Response): Promise<string> {
       return "request failed";
     }
   }
+}
+
+async function readAudioStream(res: Response): Promise<{
+  bytes: Uint8Array;
+  url: string;
+  type: string;
+}> {
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("no response body");
+
+  const chunks: Uint8Array[] = [];
+  let received = 0;
+  const total = Number(res.headers.get("content-length") || 0);
+  if (total) bus.emit?.("voice:progress", { buffered: 0 });
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (value) {
+      chunks.push(value);
+      received += value.length;
+      if (total) {
+        bus.emit?.("voice:progress", { buffered: received / total });
+      }
+    }
+  }
+
+  if (total) bus.emit?.("voice:progress", { buffered: 1 });
+
+  const bytes = new Uint8Array(received);
+  let offset = 0;
+  for (const c of chunks) {
+    bytes.set(c, offset);
+    offset += c.length;
+  }
+  const type = res.headers.get("content-type") || "audio/mpeg";
+  const blob = new Blob([bytes], { type });
+  const url = URL.createObjectURL(blob);
+  return { bytes, url, type };
 }
 
 export async function askLLM(
@@ -162,24 +207,9 @@ export async function askLLMVoice(
       return { ok: false, error: msg };
     }
 
-    const data = await res.json();
-    const type = data?.type || "audio/mpeg";
-    const b64 = data?.audio;
-    if (!b64 || typeof b64 !== "string") {
-      const msg = data?.error || "invalid response";
-      const toast = `Assistant voice request failed: ${msg}`;
-      bus.emit?.("toast", { message: toast });
-      console.error("assistant voice request failed:", msg);
-      bus.emit?.("notify", toast);
-      return { ok: false, error: msg };
-    }
-
-    const binaryString = atob(b64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-
-    return { ok: true, audio: bytes, type, text: data?.text };
+    const { bytes, url, type } = await readAudioStream(res);
+    const text = res.headers.get("x-text") ?? undefined;
+    return { ok: true, audio: bytes, url, type, text };
   } catch (e: any) {
     clearTimeout(timeout);
     const rawMsg = e?.message || "request failed";
