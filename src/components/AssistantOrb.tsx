@@ -414,7 +414,6 @@ export default function AssistantOrb() {
     const panelEl = panelRef.current;
     const measuredPanelW = panelEl?.offsetWidth || PANEL_WIDTH;
     const spaceRight = window.innerWidth - (x + ORB_SIZE + 8);
-    const placeRightPanel = spaceRight >= (measuredPanelW + 16);
     const placeRightToast = spaceRight >= 200;
 
     if (toastRef.current) {
@@ -443,15 +442,31 @@ export default function AssistantOrb() {
       );
       s.position = "fixed";
       s.top = `${top}px`;
-      if (placeRightPanel) {
-        s.left = `${x + ORB_SIZE + 8}px`;
-        s.right = "";
+
+      const minX = ORB_MARGIN;
+      const maxX = window.innerWidth - measuredPanelW - ORB_MARGIN;
+      const rightX = x + ORB_SIZE + 8;
+      const leftX = x - measuredPanelW - 8;
+
+      if (rightX <= maxX) {
+        const nx = clamp(rightX, minX, maxX);
+        s.left = `${nx}px`;
+        s.transform = "none";
+      } else if (leftX >= minX) {
+        const nx = clamp(leftX, minX, maxX);
+        s.left = `${nx}px`;
         s.transform = "none";
       } else {
-        s.left = `${x - 8}px`;
-        s.right = "";
-        s.transform = "translateX(-100%)";
+        const center = clamp(
+          x + ORB_SIZE / 2,
+          ORB_MARGIN + measuredPanelW / 2,
+          window.innerWidth - ORB_MARGIN - measuredPanelW / 2
+        );
+        s.left = `${center}px`;
+        s.transform = "translateX(-50%)";
       }
+
+      s.right = "";
     }
   }
 
@@ -578,7 +593,8 @@ export default function AssistantOrb() {
 
   // lifecycle
   useEffect(() => { applyTransform(pos.x, pos.y); posRef.current = { ...pos }; updateAnchors(); }, []);
-  useEffect(() => { updateAnchors(); }, [open, toast, interim, menuOpen, dragging]);
+  useEffect(() => { updateAnchors(); }, [toast, interim, menuOpen, dragging]);
+  useEffect(() => { requestAnimationFrame(updateAnchors); }, [open]);
   useEffect(() => { if (msgListRef.current) msgListRef.current.scrollTop = msgListRef.current.scrollHeight; }, [msgs]);
 
   useEffect(() => {
