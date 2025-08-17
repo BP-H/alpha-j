@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import bus from "../lib/bus";
 import { logError } from "../lib/logger";
-import { askLLMVoice } from "../lib/assistant";
+import { askLLMVoice, buildCtx } from "../lib/assistant";
 import useSpeech from "../lib/useSpeech";
 import type { AssistantMessage, Post } from "../types";
 import RadialMenu from "./RadialMenu";
@@ -229,27 +229,7 @@ export default function AssistantOrb() {
 
   async function handleCommand(text: string) {
     const post = ctxPost || null;
-    // capture current selection and any images on the post before building ctx
-    const selection =
-      (typeof window !== "undefined"
-        ? window.getSelection()?.toString()
-        : "")?.trim() || "";
-    const images = post
-      ? Array.isArray(post.images)
-        ? post.images
-            .filter((u): u is string => typeof u === "string")
-            .filter(
-              (u) =>
-                /^https?:\/\//i.test(u) ||
-                /^data:image\/[a-zA-Z]+;base64,/i.test(u),
-            )
-            .slice(0, 5)
-        : post.image &&
-            (/^https?:\/\//i.test(post.image) ||
-              /^data:image\/[a-zA-Z]+;base64,/i.test(post.image))
-          ? [post.image]
-          : []
-      : [];
+    const ctx = buildCtx(post, ctxPostText);
 
     push({ id: uuid(), role: "user", text, ts: Date.now(), postId: post?.id ?? null });
 
@@ -292,20 +272,6 @@ export default function AssistantOrb() {
     }
 
     // Ask the model with optional post context (id, title, visible text, selection, images)
-    const ctx =
-      post || selection || images.length
-        ? {
-            ...(post
-              ? {
-                  postId: post.id as unknown as string | number,
-                  title: (post as any)?.title,
-                  text: ctxPostText || getPostText(post),
-                }
-              : {}),
-            ...(selection ? { selection } : {}),
-            ...(images.length ? { images } : {}),
-          }
-        : null;
     const apiKey = getKey("openai");
     if (!apiKey) {
       bus.emit?.("sidebar:open");

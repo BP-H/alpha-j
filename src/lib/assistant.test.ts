@@ -4,7 +4,35 @@ vi.mock("./secureStore", () => ({
   getKey: () => "test-key",
 }));
 
-import { askLLM } from "./assistant";
+import { askLLM, askLLMVoice, buildCtx } from "./assistant";
+
+describe("buildCtx", () => {
+  it("includes selection and images", () => {
+    const sel = "selected text";
+    vi.spyOn(window, "getSelection").mockReturnValue({
+      toString: () => sel,
+    } as any);
+    const post = {
+      id: "p1",
+      images: [
+        "https://example.com/a.png",
+        "data:image/png;base64,abc",
+        "invalid",
+      ],
+      title: "T",
+    } as any;
+    const ctx = buildCtx(post, "post text");
+    expect(ctx).not.toBeNull();
+    if (!ctx) throw new Error("ctx should not be null");
+    expect(ctx.selection).toBe(sel);
+    expect(ctx.images).toEqual([
+      "https://example.com/a.png",
+      "data:image/png;base64,abc",
+    ]);
+    expect(ctx.postId).toBe("p1");
+    expect(ctx.text).toBe("post text");
+  });
+});
 
 describe("askLLM id generation", () => {
   const originalFetch = global.fetch;
@@ -71,5 +99,37 @@ describe("askLLM id generation", () => {
     const result = await askLLM("hello");
     expect(result.ok).toBe(true);
     expect(mockFetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("askLLMVoice", () => {
+  const originalFetch = global.fetch;
+  afterEach(() => {
+    global.fetch = originalFetch;
+    vi.resetAllMocks();
+  });
+
+  it("forwards context selection and images", async () => {
+    const mockFetch = vi.fn(async (_url: any, init: any) => {
+      const body = JSON.parse(init.body);
+      expect(body.ctx.selection).toBe("sel");
+      expect(body.ctx.images).toEqual(["https://img.jpg"]);
+      return {
+        ok: true,
+        json: async () => ({ audio: "aGVsbG8=", text: "hi", type: "audio/mpeg" }),
+      } as any;
+    });
+    // @ts-ignore
+    global.fetch = mockFetch;
+    const originalCreate = URL.createObjectURL;
+    // @ts-ignore
+    URL.createObjectURL = () => "blob:mock";
+
+    const ctx = { selection: "sel", images: ["https://img.jpg"] } as any;
+    const res = await askLLMVoice("hi", ctx);
+    expect(res.ok).toBe(true);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    URL.createObjectURL = originalCreate;
   });
 });
