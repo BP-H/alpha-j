@@ -174,12 +174,17 @@
 }
 
 .pc-reactions{
-  margin-top:8px;
   display:flex;
+  flex-wrap:nowrap;
   gap:6px;
-  flex-wrap:wrap;
-  color: var(--pc-ink);
+  margin-top:8px;
+  overflow-x:auto;
+  overflow-y:auto;
+  max-height:120px;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
 }
+.pc-reactions::-webkit-scrollbar{ display:none; }
 .pc-emo-count{
   font-size:14px;
   background: rgba(255,255,255,.06);
