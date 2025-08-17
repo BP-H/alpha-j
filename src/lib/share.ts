@@ -49,45 +49,23 @@ export async function sharePost(arg: Post | ShareOptions | string): Promise<bool
     // ignore and continue to fallbacks
   }
 
-  // Clipboard API
-  try {
-    if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(url);
-      return true;
-    }
-  } catch {
-    // ignore and try last fallback
-  }
-
-  // Legacy execCommand fallback
-  // TODO: Remove once navigator.clipboard has broader support.
-  if (typeof document === "undefined") return false;
-
-  const ta = document.createElement("textarea");
-  try {
-    if (!document.body) {
-      console.error("sharePost: document.body is not available");
-      return false;
-    }
-
-    ta.value = url;
-    ta.style.position = "fixed";
-    ta.style.opacity = "0";
-    document.body.appendChild(ta);
-    ta.select();
-    const success = document.execCommand("copy");
-    if (!success) {
-      console.error("sharePost: copy command failed");
-    }
-    return success;
-  } catch (err) {
-    console.error("sharePost: unable to copy", err);
-    return false;
-  } finally {
-    if (document.body && ta.parentNode === document.body) {
-      document.body.removeChild(ta);
+  // Clipboard API first
+  if (typeof navigator !== "undefined") {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url);
+        return true;
+      }
+    } catch {
+      // ignore and fall back to manual prompt
     }
   }
+
+  // Manual copy prompt fallback
+  if (typeof window !== "undefined" && typeof window.prompt === "function") {
+    window.prompt("Copy this URL:", url);
+  }
+  return false;
 }
 
 export default sharePost;
