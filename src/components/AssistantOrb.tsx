@@ -314,17 +314,22 @@ export default function AssistantOrb() {
       return;
     }
 
-    // Ask the model with optional post context (id, title, and visible text)
-    const resp = await askLLM(
-      T,
+    // Ask the model with optional post context
+    const ctx =
       post
         ? {
             postId: post.id as unknown as string | number,
             title: (post as any)?.title,
             text: ctxPostText || getPostText(post),
+            selection: ctxPostText || undefined,
+            imageUrl:
+              (post as any)?.images?.[0] ||
+              (post as any)?.image ||
+              (post as any)?.cover,
           }
-        : null
-    );
+        : null;
+
+    const resp = await askLLM(T, ctx);
     let replyText: string | null = null;
     if (resp.ok && resp.message) {
       push(resp.message);
@@ -344,16 +349,7 @@ export default function AssistantOrb() {
       const id = ++inFlightIdRef.current;
       audioRef.current?.pause();
 
-      const streamResp = await askLLMVoice(
-        replyText,
-        post
-          ? {
-              postId: post.id as unknown as string | number,
-              title: (post as any)?.title,
-              text: ctxPostText || getPostText(post),
-            }
-          : null
-      );
+      const streamResp = await askLLMVoice(replyText, ctx);
       if (id !== inFlightIdRef.current) return;
       if (streamResp.ok) {
         try {

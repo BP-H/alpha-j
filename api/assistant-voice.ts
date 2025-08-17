@@ -14,6 +14,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     model?: string;  // e.g. "gpt-4o-mini-tts"
     voice?: string;  // e.g. "alloy", "verse", "aria"
     speed?: number;  // optional: 0.25 - 4
+    ctx?: {
+      postId?: string | number;
+      selection?: string;
+      imageUrl?: string;
+    };
   };
 
   const headerKey =
@@ -40,7 +45,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         ? body.q
         : "";
 
-  const prompt = (raw || "").trim().slice(0, 4000);
+  let prompt = (raw || "").trim().slice(0, 4000);
   if (!prompt) {
     return res.status(400).json({ ok: false, error: "Missing prompt" });
   }
@@ -49,6 +54,54 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const voice = (typeof body.voice === "string" && body.voice.trim()) || "alloy";
   const speed =
     typeof body.speed === "number" && Number.isFinite(body.speed) ? body.speed : undefined;
+
+  // If context provided, generate text via chat completion first
+  if (body.ctx && (body.ctx.postId || body.ctx.selection || body.ctx.imageUrl)) {
+    const ctxSelection =
+      typeof body.ctx.selection === "string" ? body.ctx.selection.slice(0, 1000) : "";
+    const messages: Array<{ role: "system" | "user"; content: string }> = [
+      {
+        role: "system",
+        content:
+          "You are the SuperNOVA assistant orb. Reply in one or two concise sentences. No markdown.",
+      },
+    ];
+    const ctxParts: string[] = [];
+    if (body.ctx.postId) ctxParts.push(`ID ${body.ctx.postId}`);
+    if (ctxSelection) ctxParts.push(`selection: ${ctxSelection}`);
+    if (body.ctx.imageUrl) ctxParts.push(`image ${body.ctx.imageUrl}`);
+    if (ctxParts.length) {
+      messages.push({ role: "system", content: `Context — ${ctxParts.join(" — ")}` });
+    }
+    messages.push({ role: "user", content: prompt });
+
+    const cc = new AbortController();
+    const ccTimer = setTimeout(() => cc.abort(), 10_000);
+    try {
+      const r = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ model: "gpt-4o-mini", temperature: 0.3, messages }),
+        signal: cc.signal,
+      });
+      const j = await r.json();
+      if (!r.ok) {
+        return res
+          .status(r.status)
+          .json({ ok: false, error: j?.error?.message || "Failed" });
+      }
+      const text = (j?.choices?.[0]?.message?.content || "").trim();
+      if (text) prompt = text;
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : "Network error";
+      return res.status(500).json({ ok: false, error: message });
+    } finally {
+      clearTimeout(ccTimer);
+    }
+  }
 
   // Give TTS enough time to respond (Vercel Node functions allow longer than Edge)
   const ctrl = new AbortController();
