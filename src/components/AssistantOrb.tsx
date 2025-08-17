@@ -309,11 +309,11 @@ export default function AssistantOrb() {
     const apiKey = getKey("openai");
     if (!apiKey) {
       bus.emit?.("sidebar:open");
-      setToast("Please set your OpenAI API key in the sidebar");
+      setToast("Set your OpenAI API key in the sidebar to use the assistant");
       push({
         id: uuid(),
         role: "assistant",
-        text: "⚠️ Please set your OpenAI API key in the sidebar.",
+        text: "⚠️ Set your OpenAI API key in the sidebar to use the assistant.",
         ts: Date.now(),
         postId: post?.id ?? null,
       });
