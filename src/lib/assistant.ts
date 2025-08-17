@@ -20,7 +20,7 @@ export type AskPayload = {
 
 export type AskResult =
   | { ok: true; message: AssistantMessage }
-  | { ok: false; error: string };
+  | { ok: false; error: string; message?: AssistantMessage };
 
 export type AskVoiceResult =
   | {
@@ -57,6 +57,12 @@ async function parseError(res: Response): Promise<string> {
       return "request failed";
     }
   }
+}
+
+function formatError(msg: string): string {
+  if (/invalid api key/i.test(msg)) return "Invalid API key";
+  if (/missing.*api key/i.test(msg)) return "Missing API key";
+  return msg;
 }
 
 export async function askLLM(
@@ -102,12 +108,22 @@ export async function askLLM(
     clearTimeout(timeout);
 
     if (!res.ok) {
-      const msg = await parseError(res);
+      const raw = await parseError(res);
+      const msg = formatError(raw);
       const toast = `Assistant request failed: ${msg}`;
       bus.emit?.("toast", { message: toast });
       console.error("assistant request failed:", msg);
       bus.emit?.("notify", toast);
-      return { ok: false, error: msg };
+      const message: AssistantMessage = {
+        id:
+          globalThis.crypto?.randomUUID?.() ??
+          Math.random().toString(36).slice(2),
+        role: "assistant",
+        text: msg,
+        ts: Date.now(),
+        postId: ctx?.postId ?? null,
+      };
+      return { ok: false, error: msg, message };
     }
 
     const data = await res.json();
@@ -123,12 +139,22 @@ export async function askLLM(
     return { ok: true, message };
   } catch (e: any) {
     clearTimeout(timeout);
-    const msg = e?.message || "request failed";
+    const rawMsg = e?.message || "request failed";
+    const msg = formatError(rawMsg);
     const toast = `Assistant request failed: ${msg}`;
     bus.emit?.("toast", { message: toast });
     console.error("assistant request failed:", msg);
     bus.emit?.("notify", toast);
-    return { ok: false, error: msg };
+    const message: AssistantMessage = {
+      id:
+        globalThis.crypto?.randomUUID?.() ??
+        Math.random().toString(36).slice(2),
+      role: "assistant",
+      text: msg,
+      ts: Date.now(),
+      postId: ctx?.postId ?? null,
+    };
+    return { ok: false, error: msg, message };
   }
 }
 

@@ -27,7 +27,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     typeof req.headers.authorization === "string"
       ? req.headers.authorization.replace(/^Bearer\s+/i, "").trim()
       : "";
-  const apiKey = headerKey || (typeof body.apiKey === "string" ? body.apiKey.trim() : "");
+  const apiKey =
+    headerKey ||
+    (typeof body.apiKey === "string" ? body.apiKey.trim() : "") ||
+    process.env.OPENAI_API_KEY ||
+    "";
 
   if (!apiKey) {
     return res.status(401).json({
@@ -108,11 +112,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       signal: ctrl.signal,
     });
 
-    const j = await r.json();
+    const j = await r.json().catch(() => null);
     if (!r.ok) {
-      return res
-        .status(r.status)
-        .json({ ok: false, error: j?.error?.message || "Failed" });
+      const msg = j?.error?.message || j?.message || "Failed";
+      console.error("openai api error:", msg);
+      const status = r.status === 401 || r.status === 403 ? 401 : r.status;
+      return res.status(status).json({ ok: false, error: msg });
     }
 
     const text = (j?.choices?.[0]?.message?.content || "").trim();
