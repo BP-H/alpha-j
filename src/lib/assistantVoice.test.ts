@@ -23,16 +23,7 @@ describe("askLLMVoice", () => {
     const audioB64 = Buffer.from("hi").toString("base64");
     global.fetch = vi.fn(async () => ({
       ok: true,
-      json: async () => ({
-        output: [
-          {
-            content: [
-              { type: "audio", audio: { data: audioB64 } },
-              { type: "text", text: "hello" },
-            ],
-          },
-        ],
-      }),
+      json: async () => ({ audio: audioB64, text: "hello", type: "audio/mpeg" }),
     })) as any;
 
     const res = await askLLMVoice("test");
