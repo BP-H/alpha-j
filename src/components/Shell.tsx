@@ -9,6 +9,7 @@ import Sidebar from "./Sidebar";
 import PortalOverlay from "./PortalOverlay";
 import NeonRibbonComposer from "./NeonRibbonComposer";
 import AvatarPortal from "./AvatarPortal";
+import ToastContainer from "./ToastContainer";
 
 export default function Shell() {
   return (
@@ -29,6 +30,7 @@ export default function Shell() {
       <ChatDock />
       <AssistantOrb />
       <AvatarPortal />
+      <ToastContainer />
     </>
   );
 }
