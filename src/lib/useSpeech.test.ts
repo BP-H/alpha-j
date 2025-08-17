@@ -38,5 +38,39 @@ describe("useSpeech", () => {
     expect(logError).toHaveBeenCalledWith(evt);
     expect(result.current.error).toBe("Speech recognition failed");
   });
+
+  it("buffers results and emits final transcript once", async () => {
+    let instance: any;
+    class MockSpeechRecognition {
+      lang = "";
+      interimResults = true;
+      maxAlternatives = 1;
+      onresult: any = null;
+      onend: any = null;
+      start() {}
+      stop() {}
+      constructor() {
+        instance = this;
+      }
+    }
+    (globalThis as any).SpeechRecognition = MockSpeechRecognition as any;
+
+    const onResult = vi.fn();
+    renderHook(() => useSpeech({ onResult, onInterim: () => {} }));
+
+    const r1: any = [{ transcript: "hello" }];
+    r1.isFinal = true;
+    const r2: any = [{ transcript: "world" }];
+    r2.isFinal = true;
+
+    await act(async () => {
+      instance.onresult?.({ resultIndex: 0, results: [r1] });
+      instance.onresult?.({ resultIndex: 1, results: [r1, r2] });
+      await instance.onend?.();
+    });
+
+    expect(onResult).toHaveBeenCalledTimes(1);
+    expect(onResult).toHaveBeenCalledWith("hello world");
+  });
 });
 

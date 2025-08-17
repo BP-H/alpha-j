@@ -27,6 +27,8 @@ export default function useSpeech({
   const stoppingRef = useRef(false);
   const startTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Buffer recognized text until an utterance completes
+  const finalRef = useRef("");
   const [error, setError] = useState<string>("");
 
   const supported =
@@ -54,7 +56,17 @@ export default function useSpeech({
       onStart?.();
     };
 
-    rec.onend = () => {
+    rec.onend = async () => {
+      try {
+        const final = finalRef.current.trim();
+        if (final) {
+          finalRef.current = "";
+          await onResult(final);
+        }
+      } catch (err) {
+        logError(err);
+      }
+
       onEnd?.();
       // Safari ends even with continuous=true; restart if still active
       if (!stoppingRef.current && activeRef.current) {
@@ -86,23 +98,19 @@ export default function useSpeech({
       onError?.(e);
     };
 
-    rec.onresult = async (e: any) => {
+    rec.onresult = (e: any) => {
       try {
-        if (onInterim) {
-          let temp = "";
-          const finals: string[] = [];
-          for (let i = e.resultIndex; i < e.results.length; i++) {
-            const r = e.results[i];
-            const t = r[0] && r[0].transcript ? r[0].transcript : "";
-            r.isFinal ? finals.push(t) : (temp += t);
+        let temp = "";
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const r = e.results[i];
+          const t = r[0] && r[0].transcript ? r[0].transcript : "";
+          if (r.isFinal) {
+            finalRef.current += `${finalRef.current ? " " : ""}${t}`;
+          } else {
+            temp += t;
           }
-          onInterim(temp.trim());
-          const final = finals.join(" ").trim();
-          if (final) await onResult(final);
-        } else {
-          const txt = e.results && e.results[0] && e.results[0][0] && e.results[0][0].transcript;
-          if (txt) await onResult(txt);
         }
+        if (onInterim) onInterim(temp.trim());
       } catch (err) {
         logError(err);
       }
