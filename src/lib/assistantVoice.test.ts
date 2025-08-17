@@ -23,7 +23,16 @@ describe("askLLMVoice", () => {
     const audioB64 = Buffer.from("hi").toString("base64");
     global.fetch = vi.fn(async () => ({
       ok: true,
-      json: async () => ({ audio: audioB64, text: "hello", type: "audio/mpeg" }),
+      json: async () => ({
+        output: [
+          {
+            content: [
+              { type: "audio", audio: { data: audioB64 } },
+              { type: "text", text: "hello" },
+            ],
+          },
+        ],
+      }),
     })) as any;
 
     const res = await askLLMVoice("test");
@@ -47,7 +56,7 @@ describe("askLLMVoice", () => {
       });
     }) as any;
     const p = askLLMVoice("test");
-    vi.advanceTimersByTime(16000);
+    vi.advanceTimersByTime(46000);
     const res = await p;
     expect(res.ok).toBe(false);
     if (res.ok) throw new Error("expected fail");

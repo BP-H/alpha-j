@@ -112,11 +112,27 @@ describe("askLLMVoice", () => {
   it("forwards context selection and images", async () => {
     const mockFetch = vi.fn(async (_url: any, init: any) => {
       const body = JSON.parse(init.body);
-      expect(body.ctx.selection).toBe("sel");
-      expect(body.ctx.images).toEqual(["https://img.jpg"]);
+      // Ensure the selection and image were embedded into the input array
+      const selectionMsg = body.input.find((m: any) =>
+        JSON.stringify(m).includes("User selected text: sel"),
+      );
+      expect(selectionMsg).toBeTruthy();
+      const imageMsg = body.input.find((m: any) =>
+        Array.isArray(m.content) && m.content.some((c: any) => c.image_url === "https://img.jpg"),
+      );
+      expect(imageMsg).toBeTruthy();
       return {
         ok: true,
-        json: async () => ({ audio: "aGVsbG8=", text: "hi", type: "audio/mpeg" }),
+        json: async () => ({
+          output: [
+            {
+              content: [
+                { type: "audio", audio: { data: "aGVsbG8=" } },
+                { type: "text", text: "hi" },
+              ],
+            },
+          ],
+        }),
       } as any;
     });
     // @ts-ignore
