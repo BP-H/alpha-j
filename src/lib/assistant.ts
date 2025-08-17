@@ -21,7 +21,7 @@ function getPostText(p: Post | null): string {
   }
 }
 
-export function buildCtx(
+export function buildAssistantContext(
   post: Post | null,
   postTextOverride?: string,
 ): AssistantCtx {

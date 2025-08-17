@@ -4,9 +4,9 @@ vi.mock("./secureStore", () => ({
   getKey: () => "test-key",
 }));
 
-import { askLLM, askLLMVoice, buildCtx } from "./assistant";
+import { askLLM, askLLMVoice, buildAssistantContext } from "./assistant";
 
-describe("buildCtx", () => {
+describe("buildAssistantContext", () => {
   it("includes selection and images", () => {
     const sel = "selected text";
     vi.spyOn(window, "getSelection").mockReturnValue({
@@ -21,7 +21,7 @@ describe("buildCtx", () => {
       ],
       title: "T",
     } as any;
-    const ctx = buildCtx(post, "post text");
+    const ctx = buildAssistantContext(post, "post text");
     expect(ctx).not.toBeNull();
     if (!ctx) throw new Error("ctx should not be null");
     expect(ctx.selection).toBe(sel);
