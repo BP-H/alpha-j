@@ -1,5 +1,6 @@
 // /api/assistant-voice.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { Buffer } from "node:buffer";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -151,10 +152,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.status(500).json({ ok: false, error: "Missing audio" });
     }
 
+    let audioBytes: Buffer;
+    try {
+      audioBytes = Buffer.from(audioB64, "base64");
+    } catch {
+      return res.status(500).json({ ok: false, error: "Invalid audio" });
+    }
+
+    if (!audioBytes.length) {
+      return res.status(500).json({ ok: false, error: "Invalid audio" });
+    }
+
     res.status(200);
-    res.setHeader("Content-Type", "application/json");
+    res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Cache-Control", "no-store");
-    return res.send(JSON.stringify({ ok: true, audio: audioB64, text, type: "audio/mpeg" }));
+    if (text) res.setHeader("x-text", text);
+    res.setHeader("Content-Length", String(audioBytes.length));
+    return res.send(audioBytes);
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Network error";
     return res.status(500).json({ ok: false, error: message });

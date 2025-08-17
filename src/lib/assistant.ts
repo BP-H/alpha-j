@@ -210,6 +210,13 @@ export async function askLLMVoice(
     }
 
     const { bytes, url, type } = await readAudioStream(res);
+    if (!bytes.length || !type.startsWith("audio")) {
+      const msg = "missing or invalid audio";
+      const toast = `Assistant voice request failed: ${msg}`;
+      bus.emit?.("toast", { message: toast });
+      bus.emit?.("notify", toast);
+      return { ok: false, error: msg };
+    }
     const text = res.headers.get("x-text") ?? undefined;
     return { ok: true, audio: bytes, url, type, text };
   } catch (e: any) {
