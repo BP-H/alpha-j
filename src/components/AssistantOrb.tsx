@@ -86,8 +86,9 @@ function getPostText(p: Post | null): string {
 }
 
 export default function AssistantOrb() {
+  const mountedRef = useRef(true);
   // committed position
-  const [pos, setPos] = useState(() => {
+  const [pos, _setPos] = useState(() => {
     if (typeof window === "undefined") return { x: 0, y: 0 };
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
@@ -104,21 +105,60 @@ export default function AssistantOrb() {
       y: window.innerHeight - ORB_SIZE - ORB_MARGIN,
     };
   });
+  const setPos = (v: React.SetStateAction<{ x: number; y: number }>) => {
+    if (mountedRef.current) _setPos(v);
+  };
   const posRef = useRef<{ x: number; y: number }>({ ...pos });
 
   // UI
-  const [open, setOpen] = useState(false);       // chat panel
-  const [mic, setMic] = useState(false);
-  const [toast, setToast] = useState("");
-  const [interim, setInterim] = useState("");
-  const [msgs, setMsgs] = useState<AssistantMessage[]>([]);
-  const [ctxPost, setCtxPost] = useState<Post | null>(null);
-  const [ctxPostText, setCtxPostText] = useState("");
-  const [dragging, setDragging] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false); // radial
-  const [petal, setPetal] = useState<null | "comment" | "remix" | "share">(null);
-  const [voiceOn, setVoiceOn] = useState(true);
-  const [playProgress, setPlayProgress] = useState(0);
+  const [open, _setOpen] = useState(false);       // chat panel
+  const setOpen = (v: React.SetStateAction<boolean>) => {
+    if (mountedRef.current) _setOpen(v);
+  };
+  const [mic, _setMic] = useState(false);
+  const setMic = (v: React.SetStateAction<boolean>) => {
+    if (mountedRef.current) _setMic(v);
+  };
+  const [toast, _setToast] = useState("");
+  const setToast = (v: React.SetStateAction<string>) => {
+    if (mountedRef.current) _setToast(v);
+  };
+  const [interim, _setInterim] = useState("");
+  const setInterim = (v: React.SetStateAction<string>) => {
+    if (mountedRef.current) _setInterim(v);
+  };
+  const [msgs, _setMsgs] = useState<AssistantMessage[]>([]);
+  const setMsgs = (v: React.SetStateAction<AssistantMessage[]>) => {
+    if (mountedRef.current) _setMsgs(v);
+  };
+  const [ctxPost, _setCtxPost] = useState<Post | null>(null);
+  const setCtxPost = (v: React.SetStateAction<Post | null>) => {
+    if (mountedRef.current) _setCtxPost(v);
+  };
+  const [ctxPostText, _setCtxPostText] = useState("");
+  const setCtxPostText = (v: React.SetStateAction<string>) => {
+    if (mountedRef.current) _setCtxPostText(v);
+  };
+  const [dragging, _setDragging] = useState(false);
+  const setDragging = (v: React.SetStateAction<boolean>) => {
+    if (mountedRef.current) _setDragging(v);
+  };
+  const [menuOpen, _setMenuOpen] = useState(false); // radial
+  const setMenuOpen = (v: React.SetStateAction<boolean>) => {
+    if (mountedRef.current) _setMenuOpen(v);
+  };
+  const [petal, _setPetal] = useState<null | "comment" | "remix" | "share">(null);
+  const setPetal = (v: React.SetStateAction<null | "comment" | "remix" | "share">) => {
+    if (mountedRef.current) _setPetal(v);
+  };
+  const [voiceOn, _setVoiceOn] = useState(true);
+  const setVoiceOn = (v: React.SetStateAction<boolean>) => {
+    if (mountedRef.current) _setVoiceOn(v);
+  };
+  const [playProgress, _setPlayProgress] = useState(0);
+  const setPlayProgress = (v: React.SetStateAction<number>) => {
+    if (mountedRef.current) _setPlayProgress(v);
+  };
   const reduceMotion = useReducedMotion();
 
   // gestures
@@ -138,6 +178,23 @@ export default function AssistantOrb() {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const msgListRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioUrlRef = useRef<string | null>(null);
+  const progressRafRef = useRef<number | null>(null);
+  const inFlightIdRef = useRef(0);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+        audioUrlRef.current = null;
+      }
+      if (progressRafRef.current != null) {
+        cancelAnimationFrame(progressRafRef.current);
+      }
+      audioRef.current?.pause();
+    };
+  }, []);
 
   // feed context
   useEffect(() => {
@@ -282,6 +339,9 @@ export default function AssistantOrb() {
     }
 
     if (voiceOn) {
+      const id = ++inFlightIdRef.current;
+      audioRef.current?.pause();
+
       const streamResp = await askLLMVoice(
         T,
         post
@@ -292,12 +352,19 @@ export default function AssistantOrb() {
             }
           : null
       );
+      if (id !== inFlightIdRef.current) return;
       if (streamResp.ok) {
         try {
           const blob = await new Response(streamResp.stream).blob();
           const url = URL.createObjectURL(blob);
           const el = audioRef.current;
+          if (id !== inFlightIdRef.current) {
+            URL.revokeObjectURL(url);
+            return;
+          }
           if (el) {
+            if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+            audioUrlRef.current = url;
             el.src = url;
             setPlayProgress(0);
             try {
@@ -306,6 +373,8 @@ export default function AssistantOrb() {
               logError(err);
               setToast("Audio playback failed");
             }
+          } else {
+            URL.revokeObjectURL(url);
           }
         } catch (err) {
           logError(err);
@@ -669,10 +738,27 @@ export default function AssistantOrb() {
         style={{ display: "none" }}
         onTimeUpdate={e => {
           const el = e.currentTarget;
-          if (el.duration) setPlayProgress(el.currentTime / el.duration);
+          if (el.duration) {
+            if (progressRafRef.current != null) {
+              cancelAnimationFrame(progressRafRef.current);
+            }
+            progressRafRef.current = requestAnimationFrame(() => {
+              setPlayProgress(el.currentTime / el.duration);
+            });
+          }
         }}
-        onEnded={() => setPlayProgress(1)}
-        onError={() => setToast("Audio playback failed")}
+        onEnded={() => {
+          if (progressRafRef.current != null) {
+            cancelAnimationFrame(progressRafRef.current);
+          }
+          setPlayProgress(1);
+        }}
+        onError={() => {
+          if (progressRafRef.current != null) {
+            cancelAnimationFrame(progressRafRef.current);
+          }
+          setToast("Audio playback failed");
+        }}
       />
 
       <button
@@ -771,6 +857,7 @@ export default function AssistantOrb() {
               style={{ marginLeft: "auto", height: 28, padding: "0 10px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.16)" }}
               aria-label={voiceOn ? "Mute voice" : "Enable voice"}
               title={voiceOn ? "Mute voice" : "Enable voice"}
+              aria-pressed={voiceOn}
             >
               {voiceOn ? "🔊" : "🔇"}
             </button>
@@ -778,8 +865,16 @@ export default function AssistantOrb() {
           </div>
 
           {voiceOn && (
-            <div style={{ height: 4, background: "rgba(255,255,255,.12)", marginBottom: 8 }}>
-              <div style={{ width: `${playProgress * 100}%`, height: "100%", background: "#fff", transition: "width .1s linear" }} />
+            <div
+              role="progressbar"
+              aria-valuenow={Math.round(playProgress * 100)}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              style={{ height: 4, background: "rgba(255,255,255,.12)", marginBottom: 8 }}
+            >
+              <div
+                style={{ width: `${playProgress * 100}%`, height: "100%", background: "#fff", transition: "width .1s linear" }}
+              />
             </div>
           )}
 
