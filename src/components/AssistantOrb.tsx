@@ -326,15 +326,18 @@ export default function AssistantOrb() {
         : null
     );
     let replyText: string | null = null;
-    if (resp.ok && resp.message) {
-      push(resp.message);
-      replyText = resp.message.text;
+    if (resp.ok) {
+      if (resp.message) {
+        push(resp.message);
+        replyText = resp.message.text;
+      }
     } else {
-      setToast(resp.error);
+      const err = resp.error ?? "Unknown error";
+      setToast(err);
       push({
         id: uuid(),
         role: "assistant",
-        text: `⚠️ ${resp.error}`,
+        text: `⚠️ ${err}`,
         ts: Date.now(),
         postId: post?.id ?? null,
       });
