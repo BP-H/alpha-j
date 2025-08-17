@@ -38,7 +38,7 @@ describe("askLLM id generation", () => {
 
     const result = await askLLM("hello");
     expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.error);
+    if (!result.ok) throw new Error(result.error.message);
     expect(result.message.id).toBe(uuid);
   });
 
@@ -55,7 +55,7 @@ describe("askLLM id generation", () => {
 
     const result = await askLLM("hello");
     expect(result.ok).toBe(true);
-    if (!result.ok) throw new Error(result.error);
+    if (!result.ok) throw new Error(result.error.message);
     expect(result.message.id).toBe("4fzzzxjylrx");
   });
 

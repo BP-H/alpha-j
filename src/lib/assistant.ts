@@ -18,9 +18,15 @@ export type AskPayload = {
   apiKey?: string;
 };
 
+export type AssistantError = {
+  type: "aborted" | "network" | "openai" | "unknown";
+  message: string;
+  status?: number;
+};
+
 export type AskResult =
   | { ok: true; message: AssistantMessage }
-  | { ok: false; error: string };
+  | { ok: false; error: AssistantError };
 
 export type AskVoiceResult =
   | {
@@ -30,7 +36,7 @@ export type AskVoiceResult =
       type: string;
       text?: string;
     }
-  | { ok: false; error: string };
+  | { ok: false; error: AssistantError };
 
 const warnOnce = (() => {
   let warned = false;
@@ -45,11 +51,11 @@ const warnOnce = (() => {
 async function parseError(res: Response): Promise<string> {
   try {
     const data = await res.json();
-    return (
-      (data && (data.error || data.message)) ||
-      (typeof data === "string" ? data : JSON.stringify(data)) ||
-      "request failed"
-    );
+    if (typeof data === "string") return data;
+    if (typeof data?.error === "string") return data.error;
+    if (typeof data?.error?.message === "string") return data.error.message;
+    if (typeof data?.message === "string") return data.message;
+    return JSON.stringify(data) || "request failed";
   } catch {
     try {
       return (await res.text()) || "request failed";
@@ -107,7 +113,10 @@ export async function askLLM(
       bus.emit?.("toast", { message: toast });
       console.error("assistant request failed:", msg);
       bus.emit?.("notify", toast);
-      return { ok: false, error: msg };
+      return {
+        ok: false,
+        error: { type: "openai", message: msg, status: res.status },
+      };
     }
 
     const data = await res.json();
@@ -124,11 +133,19 @@ export async function askLLM(
   } catch (e: any) {
     clearTimeout(timeout);
     const msg = e?.message || "request failed";
-    const toast = `Assistant request failed: ${msg}`;
+    let err: AssistantError;
+    if (e?.name === "AbortError") {
+      err = { type: "aborted", message: "request timed out" };
+    } else if (/network/i.test(msg) || /fetch/i.test(msg)) {
+      err = { type: "network", message: "network error, please check your connection" };
+    } else {
+      err = { type: "unknown", message: msg };
+    }
+    const toast = `Assistant request failed: ${err.message}`;
     bus.emit?.("toast", { message: toast });
-    console.error("assistant request failed:", msg);
+    console.error("assistant request failed:", err.message);
     bus.emit?.("notify", toast);
-    return { ok: false, error: msg };
+    return { ok: false, error: err };
   }
 }
 
@@ -139,7 +156,7 @@ export async function askLLMVoice(
   const apiKey = getKey("openai");
   if (!apiKey) {
     warnOnce("Missing OpenAI API key");
-    return { ok: false, error: "missing api key" };
+    return { ok: false, error: { type: "openai", message: "missing api key" } };
   }
 
   const payload: { prompt: string; ctx?: AssistantCtx } = {
@@ -167,7 +184,10 @@ export async function askLLMVoice(
       bus.emit?.("toast", { message: toast });
       console.error("assistant voice request failed:", msg);
       bus.emit?.("notify", toast);
-      return { ok: false, error: msg };
+      return {
+        ok: false,
+        error: { type: "openai", message: msg, status: res.status },
+      };
     }
 
     const data: { audio: string; text?: string; type?: string } =
@@ -181,14 +201,19 @@ export async function askLLMVoice(
   } catch (e: any) {
     clearTimeout(timeout);
     const rawMsg = e?.message || "request failed";
-    const msg = /network/i.test(rawMsg)
-      ? "network error, please check your connection"
-      : rawMsg;
-    const toast = `Assistant voice request failed: ${msg}`;
+    let err: AssistantError;
+    if (e?.name === "AbortError") {
+      err = { type: "aborted", message: "request timed out" };
+    } else if (/network/i.test(rawMsg) || /fetch/i.test(rawMsg)) {
+      err = { type: "network", message: "network error, please check your connection" };
+    } else {
+      err = { type: "unknown", message: rawMsg };
+    }
+    const toast = `Assistant voice request failed: ${err.message}`;
     bus.emit?.("toast", { message: toast });
-    console.error("assistant voice request failed:", msg);
+    console.error("assistant voice request failed:", err.message);
     bus.emit?.("notify", toast);
-    return { ok: false, error: msg };
+    return { ok: false, error: err };
   }
 }
 

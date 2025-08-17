@@ -320,61 +320,74 @@ export default function AssistantOrb() {
       return;
     }
 
-    const id = ++inFlightIdRef.current;
-    audioRef.current?.pause();
-    setPlayProgress(0);
+    const sendVoice = async () => {
+      const id = ++inFlightIdRef.current;
+      audioRef.current?.pause();
+      setPlayProgress(0);
 
-    const voiceResp = await askLLMVoice(T, ctx);
-    if (id !== inFlightIdRef.current) return;
-    if (voiceResp.ok) {
-      if (voiceResp.text) {
+      const voiceResp = await askLLMVoice(T, ctx);
+      if (id !== inFlightIdRef.current) return;
+      if (voiceResp.ok) {
+        if (voiceResp.text) {
+          push({
+            id: uuid(),
+            role: "assistant",
+            text: voiceResp.text,
+            ts: Date.now(),
+            postId: post?.id ?? null,
+          });
+        }
+
+        if (voiceOn) {
+          try {
+            const el = audioRef.current;
+            if (el) {
+              if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
+              if (id !== inFlightIdRef.current) {
+                URL.revokeObjectURL(voiceResp.url);
+                return;
+              }
+              audioUrlRef.current = voiceResp.url;
+              el.src = voiceResp.url;
+              setPlayProgress(0);
+              try {
+                await el.play();
+              } catch (err) {
+                logError(err);
+                setToast("Audio playback failed");
+              }
+            }
+          } catch (err) {
+            logError(err);
+            setToast("Voice failed");
+            push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
+          }
+        } else {
+          URL.revokeObjectURL(voiceResp.url);
+        }
+      } else {
+        const err = voiceResp.error;
+        let msg = err.message || "Unknown error";
+        if (err.type === "aborted") msg = "Request timed out";
+        else if (err.type === "network") msg = "Network error, please check your connection";
+        else if (err.type === "openai" && err.status === 401)
+          msg = "Invalid or missing OpenAI API key";
+        setToast(msg);
         push({
           id: uuid(),
           role: "assistant",
-          text: voiceResp.text,
+          text: `⚠️ ${msg}`,
           ts: Date.now(),
           postId: post?.id ?? null,
+          meta:
+            err.type === "openai" && err.status === 401
+              ? undefined
+              : { retry: sendVoice },
         });
       }
+    };
 
-      if (voiceOn) {
-        try {
-          const el = audioRef.current;
-          if (el) {
-            if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
-            if (id !== inFlightIdRef.current) {
-              URL.revokeObjectURL(voiceResp.url);
-              return;
-            }
-            audioUrlRef.current = voiceResp.url;
-            el.src = voiceResp.url;
-            setPlayProgress(0);
-            try {
-              await el.play();
-            } catch (err) {
-              logError(err);
-              setToast("Audio playback failed");
-            }
-          }
-        } catch (err) {
-          logError(err);
-          setToast("Voice failed");
-          push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
-        }
-      } else {
-        URL.revokeObjectURL(voiceResp.url);
-      }
-    } else {
-      const err = voiceResp.error ?? "Unknown error";
-      setToast(err);
-      push({
-        id: uuid(),
-        role: "assistant",
-        text: `⚠️ ${err}`,
-        ts: Date.now(),
-        postId: post?.id ?? null,
-      });
-    }
+    await sendVoice();
   }
 
   // ✅ missing function (caused your build error)
@@ -876,13 +889,36 @@ export default function AssistantOrb() {
 
           <div ref={msgListRef} style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 200, overflowY: "auto", padding: "6px 0" }}>
             {msgs.length === 0 && <div style={{ fontSize: 13, opacity: .75 }}>Hold/drag or double‑click to speak, or use the quick menu.</div>}
-            {msgs.map(m => (
-              <div key={m.id} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
-                <div style={{ maxWidth: "80%", background: m.role === "user" ? "rgba(255,255,255,.12)" : "rgba(255,255,255,.06)", padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(255,255,255,.12)" }}>
-                  {m.text}
+            {msgs.map(m => {
+              const retry = (m.meta as any)?.retry as (() => void) | undefined;
+              return (
+                <div key={m.id} style={{ display: "flex", justifyContent: m.role === "user" ? "flex-end" : "flex-start" }}>
+                  <div style={{ maxWidth: "80%", background: m.role === "user" ? "rgba(255,255,255,.12)" : "rgba(255,255,255,.06)", padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(255,255,255,.12)", display: "flex", alignItems: "center", gap: 6 }}>
+                    <span style={{ flex: 1 }}>{m.text}</span>
+                    {retry && (
+                      <button
+                        onClick={() => {
+                          retry();
+                          setMsgs(s => s.filter(x => x.id !== m.id));
+                        }}
+                        style={{
+                          padding: "0 6px",
+                          height: 24,
+                          borderRadius: 6,
+                          cursor: "pointer",
+                          background: "rgba(255,255,255,.08)",
+                          border: "1px solid rgba(255,255,255,.16)",
+                          color: "#fff",
+                        }}
+                        aria-label="Retry"
+                      >
+                        Retry
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
             {interim && (
               <div style={{ display: "flex" }}>
                 <div style={{ maxWidth: "80%", background: "rgba(255,255,255,.06)", padding: "8px 10px", borderRadius: 12, border: "1px solid rgba(255,255,255,.12)" }}>
