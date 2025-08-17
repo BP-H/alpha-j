@@ -1,11 +1,12 @@
 // src/lib/useSpeech.ts
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { logError } from "./logger";
 
 type ResultHandler = (text: string) => void | Promise<void>;
 
 export default function useSpeechRecognition(onResult: ResultHandler) {
   const recRef = useRef<any>(null);
+  const [error, setError] = useState<string>("");
   const supported =
     typeof window !== "undefined" &&
     ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition);
@@ -18,6 +19,7 @@ export default function useSpeechRecognition(onResult: ResultHandler) {
       rec = new Ctor();
     } catch (err) {
       logError(err);
+      setError("Speech recognition unavailable");
       return;
     }
     rec.lang = "en-US";
@@ -34,7 +36,10 @@ export default function useSpeechRecognition(onResult: ResultHandler) {
         try { rec.stop(); } catch (err) { logError(err); }
       }
     };
-    rec.onerror = () => {};
+    rec.onerror = (e: unknown) => {
+      logError(e);
+      setError("Speech recognition failed");
+    };
     recRef.current = rec;
     return () => {
       try { rec.stop(); } catch (err) { logError(err); }
@@ -50,5 +55,5 @@ export default function useSpeechRecognition(onResult: ResultHandler) {
     try { recRef.current && recRef.current.stop(); } catch (err) { logError(err); }
   }, []);
 
-  return { start, stop, supported: !!supported };
+  return { start, stop, supported: !!supported, error };
 }
