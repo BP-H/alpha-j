@@ -112,6 +112,36 @@ export default function Sidebar() {
   const [unsplashDraft, setUnsplashDraft] = useState(unsplashKey);
   const [pexelsDraft, setPexelsDraft] = useState(pexelsKey);
 
+  const [openaiValid, setOpenaiValid] = useState<null | boolean>(null);
+
+  const verifyOpenaiKey = async (key: string) => {
+    if (!key) {
+      setOpenaiValid(null);
+      return;
+    }
+    try {
+      const res = await fetch("/api/openai-ping", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: key }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        error?: string;
+      };
+      if (data.ok) setOpenaiValid(true);
+      else {
+        setOpenaiValid(false);
+        bus.emit("toast", {
+          message: data.error || "OpenAI key failed. Please re-check your key.",
+        });
+      }
+    } catch (e) {
+      setOpenaiValid(false);
+      bus.emit("toast", { message: "Could not verify OpenAI key." });
+    }
+  };
+
   useEffect(() => {
     setOpenaiDraft(openaiKey);
     setAnthropicDraft(anthropicKey);
@@ -132,14 +162,20 @@ export default function Sidebar() {
       id: "openai",
       label: "OpenAI (voice & text assistants)",
       value: openaiDraft,
+      status: openaiValid,
       onChange: (v: string) => {
         setOpenaiDraft(v);
         setOpenaiKey(v);
+        setOpenaiValid(null);
       },
-      onSave: () => setOpenaiKey(openaiDraft),
+      onSave: () => {
+        setOpenaiKey(openaiDraft);
+        void verifyOpenaiKey(openaiDraft);
+      },
       onRemove: () => {
         setOpenaiDraft("");
         setOpenaiKey("");
+        setOpenaiValid(null);
       },
     },
     {
@@ -384,7 +420,15 @@ export default function Sidebar() {
             <header>API Keys</header>
             <div className="keys">
               {keyFields.map(
-                ({ id, label, value, onChange, onSave, onRemove }) => (
+                ({
+                  id,
+                  label,
+                  value,
+                  onChange,
+                  onSave,
+                  onRemove,
+                  status,
+                }) => (
                   <div key={id} className="key-field">
                     <label className="label" htmlFor={`key-${id}`}>
                       {label}
@@ -410,6 +454,16 @@ export default function Sidebar() {
                       <button className="key-toggle" onClick={onRemove} type="button">
                         Remove
                       </button>
+                      {status === true && (
+                        <span className="key-status success" aria-label="Valid key">
+                          ✓
+                        </span>
+                      )}
+                      {status === false && (
+                        <span className="key-status error" aria-label="Invalid key">
+                          ✕
+                        </span>
+                      )}
                     </div>
                   </div>
                 ),
