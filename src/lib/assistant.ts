@@ -1,5 +1,5 @@
 // src/lib/assistant.ts
-import type { AssistantMessage, RemixSpec } from "../types";
+import type { AssistantMessage, RemixSpec, Post } from "../types";
 import bus from "./bus";
 import { getKey } from "./secureStore";
 
@@ -10,6 +10,56 @@ type AssistantCtx = {
   selection?: string;
   images?: string[];
 } | null;
+
+function getPostText(p: Post | null): string {
+  if (!p) return "";
+  try {
+    const el = document.querySelector(`[data-post-id="${p.id}"]`);
+    return el?.textContent?.trim().slice(0, 2000) || "";
+  } catch {
+    return "";
+  }
+}
+
+export function buildCtx(
+  post: Post | null,
+  postTextOverride?: string,
+): AssistantCtx {
+  const selection =
+    (typeof window !== "undefined"
+      ? window.getSelection()?.toString()
+      : "")?.trim() || "";
+  const images = post
+    ? Array.isArray(post.images)
+      ? post.images
+          .filter((u): u is string => typeof u === "string")
+          .filter(
+            (u) =>
+              /^https?:\/\//i.test(u) ||
+              /^data:image\/[a-zA-Z]+;base64,/i.test(u),
+          )
+          .slice(0, 5)
+      : post.image &&
+          (/^https?:\/\//i.test(post.image) ||
+            /^data:image\/[a-zA-Z]+;base64,/i.test(post.image))
+        ? [post.image]
+        : []
+    : [];
+
+  if (!post && !selection && !images.length) return null;
+
+  const text = post ? postTextOverride || getPostText(post) : "";
+  const ctx: Exclude<AssistantCtx, null> = {
+    selection,
+    images,
+  };
+  if (post) {
+    ctx.postId = post.id as unknown as string | number;
+    ctx.title = (post as any)?.title;
+    ctx.text = text;
+  }
+  return ctx;
+}
 
 export type AskPayload = {
   prompt: string;
