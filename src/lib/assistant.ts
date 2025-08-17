@@ -11,7 +11,7 @@ type AssistantCtx = {
 export async function askLLM(
   input: string,
   ctx?: AssistantCtx,
-): Promise<AssistantMessage> {
+): Promise<{ ok: true; msg: AssistantMessage } | { ok: false; error: string }> {
   try {
     // Optional model picked in UI and saved to localStorage
     let model: string | undefined;
@@ -43,17 +43,19 @@ export async function askLLM(
     if (res.ok) {
       const data = await res.json();
       return {
-        id:
-          globalThis.crypto?.randomUUID?.() ??
-          Math.random().toString(36).slice(2),
-        role: "assistant",
-        text: data.text || "ok",
-        ts: Date.now(),
-        postId: ctx?.postId ?? null,
+        ok: true,
+        msg: {
+          id:
+            globalThis.crypto?.randomUUID?.() ??
+            Math.random().toString(36).slice(2),
+          role: "assistant",
+          text: data.text || "ok",
+          ts: Date.now(),
+          postId: ctx?.postId ?? null,
+        },
       };
     }
 
-    // Handle non-OK responses so the caller knows the request failed
     try {
       const err: any = await res.json().catch(() => null);
       const msg = err?.error || "request failed";
@@ -65,29 +67,33 @@ export async function askLLM(
           // ignore alert errors
         }
       }
+      return { ok: false, error: msg };
     } catch {
       console.error("assistant request failed: unknown error");
+      return { ok: false, error: "request failed" };
     }
   } catch {
     // fall through to stub
   }
 
-  // offline stub so builds never fail
   return {
-    id:
-      globalThis.crypto?.randomUUID?.() ??
-      Math.random().toString(36).slice(2),
-    role: "assistant",
-    text: `💡 stub: “${input}”`,
-    ts: Date.now(),
-    postId: ctx?.postId ?? null,
+    ok: true,
+    msg: {
+      id:
+        globalThis.crypto?.randomUUID?.() ??
+        Math.random().toString(36).slice(2),
+      role: "assistant",
+      text: `💡 stub: “${input}”`,
+      ts: Date.now(),
+      postId: ctx?.postId ?? null,
+    },
   };
 }
 
 export async function askLLMVoice(
   prompt: string,
   ctx?: AssistantCtx,
-): Promise<ReadableStream<Uint8Array> | null> {
+): Promise<{ ok: true; stream: ReadableStream<Uint8Array> } | { ok: false; error: string }> {
   const apiKey = getKey("sn2177.apiKey");
 
   try {
@@ -110,14 +116,14 @@ export async function askLLMVoice(
           // ignore alert errors
         }
       }
-      return null;
+      return { ok: false, error: msg };
     }
 
-    return res.body as ReadableStream<Uint8Array>;
+    return { ok: true, stream: res.body as ReadableStream<Uint8Array> };
   } catch {
     // fall through
   }
-  return null;
+  return { ok: false, error: "voice request failed" };
 }
 
 export async function imageToVideo(

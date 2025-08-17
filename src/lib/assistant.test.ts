@@ -31,8 +31,9 @@ describe("askLLM id generation", () => {
       configurable: true,
     });
 
-    const msg = await askLLM("hello");
-    expect(msg.id).toBe(uuid);
+    const res = await askLLM("hello");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.msg.id).toBe(uuid);
   });
 
   it("falls back to Math.random when crypto.randomUUID is unavailable", async () => {
@@ -46,7 +47,8 @@ describe("askLLM id generation", () => {
     delete global.crypto;
     Math.random = () => 0.123456789;
 
-    const msg = await askLLM("hello");
-    expect(msg.id).toBe("4fzzzxjylrx");
+    const res = await askLLM("hello");
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.msg.id).toBe("4fzzzxjylrx");
   });
 });
