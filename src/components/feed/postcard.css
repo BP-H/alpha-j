@@ -121,6 +121,9 @@
 /* “pop-out” single-row emoji strip, extending from the glass */
 .pc-react-strip{
   display:flex; align-items:center; gap:8px; overflow-x:auto;
+  width:100%;
+  max-width:100%;
+  box-sizing:border-box;
   padding:6px 8px; border-radius:999px;
   background: var(--pc-glass); border:1px solid var(--pc-stroke);
   color: var(--pc-ink);
