@@ -1,11 +1,23 @@
 // src/lib/api.ts
 import { getKey } from "./secureStore";
+import bus from "./bus";
 
-interface AssistantReplyJson {
-  ok: boolean;
-  text?: string;
-  error?: string;
+let warned = false;
+function warnOnce(msg: string) {
+  if (warned) return;
+  warned = true;
+  console.warn(msg);
+  bus.emit("notify", msg);
 }
+
+interface AssistantReplyPayload {
+  prompt: string;
+  apiKey?: string;
+}
+
+export type AssistantReplyResult =
+  | { ok: true; text: string }
+  | { ok: false; error: string };
 
 export interface Player {
   id: string;
@@ -21,31 +33,49 @@ interface PlayersJson {
 
 export async function assistantReply(
   prompt: string,
-): Promise<{ ok: boolean; text?: string; error?: string }> {
-  const apiKey = getKey("sn2177.apiKey");
+): Promise<AssistantReplyResult> {
+  const apiKey = getKey("openai") || getKey("sn2177.apiKey");
+  if (!apiKey) warnOnce("Missing OpenAI API key");
+
+  const payload: AssistantReplyPayload = { prompt };
+  if (apiKey) payload.apiKey = apiKey;
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
-    const r = await fetch("/api/assistant-reply", {
+    const res = await fetch("/api/assistant-reply", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ apiKey, prompt }), // — 'prompt' shape
+      body: JSON.stringify(payload),
+      signal: controller.signal,
     });
-    if (!r.ok) {
-      return { ok: false, error: `HTTP ${r.status}` };
+    if (!res.ok) {
+      let err = `HTTP ${res.status}`;
+      try {
+        const data = (await res.json()) as { error?: string };
+        if (typeof data.error === "string") err = data.error;
+      } catch {
+        try {
+          const text = await res.text();
+          if (text) err = text;
+        } catch {
+          // ignore
+        }
+      }
+      return { ok: false, error: err };
     }
-    let data: AssistantReplyJson;
-    try {
-      data = (await r.json()) as AssistantReplyJson;
-    } catch (e: unknown) {
-      console.error("Failed to parse /api/assistant-reply response", e);
-      return { ok: false, error: "Invalid JSON response" };
+    const data = (await res.json()) as AssistantReplyResult;
+    if (data.ok && typeof (data as any).text === "string") {
+      return { ok: true, text: (data as any).text };
     }
-    if (data.ok && typeof data.text === "string") {
-      return { ok: true, text: data.text };
-    }
-    return { ok: false, error: typeof data.error === "string" ? data.error : "Failed" };
+    const error =
+      typeof (data as any).error === "string" ? (data as any).error : "Failed";
+    return { ok: false, error };
   } catch (e: unknown) {
-    const message = e instanceof Error ? e.message : "Network error";
-    return { ok: false, error: message };
+    const error = e instanceof Error ? e.message : "Network error";
+    return { ok: false, error };
+  } finally {
+    clearTimeout(timeout);
   }
 }
 
