@@ -236,8 +236,17 @@ export default function AssistantOrb() {
         : "")?.trim() || "";
     const images = post
       ? Array.isArray(post.images)
-        ? [...post.images]
-        : post.image
+        ? post.images
+            .filter((u): u is string => typeof u === "string")
+            .filter(
+              (u) =>
+                /^https?:\/\//i.test(u) ||
+                /^data:image\/[a-zA-Z]+;base64,/i.test(u),
+            )
+            .slice(0, 5)
+        : post.image &&
+            (/^https?:\/\//i.test(post.image) ||
+              /^data:image\/[a-zA-Z]+;base64,/i.test(post.image))
           ? [post.image]
           : []
       : [];
