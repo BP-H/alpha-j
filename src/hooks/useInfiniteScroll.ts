@@ -65,13 +65,21 @@ export function useInfiniteScroll<T>(opts: {
       }
     }, { rootMargin });
     observerRef.current = io;
-    const node = sentinelRef.current;
-    if (node) io.observe(node);
     return () => {
       cancelled = true;
       observerRef.current?.disconnect();
     };
-  }, [loadMore, hasMore, rootMargin, sentinelRef.current]);
+  }, [loadMore, hasMore, rootMargin]);
+
+  useEffect(() => {
+    const node = sentinelRef.current;
+    const observer = observerRef.current;
+    if (!node || !observer) return;
+    observer.observe(node);
+    return () => {
+      observer.unobserve(node);
+    };
+  }, [sentinelRef.current, observerRef.current]);
 
   return { items, setItems, page, setPage, loading, error, sentinelRef };
 }
