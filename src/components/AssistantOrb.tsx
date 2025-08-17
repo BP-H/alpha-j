@@ -325,8 +325,10 @@ export default function AssistantOrb() {
           }
         : null
     );
-    if (resp.ok) {
+    let replyText: string | null = null;
+    if (resp.ok && resp.message) {
       push(resp.message);
+      replyText = resp.message.text;
     } else {
       setToast(resp.error);
       push({
@@ -338,12 +340,12 @@ export default function AssistantOrb() {
       });
     }
 
-    if (voiceOn) {
+    if (voiceOn && replyText) {
       const id = ++inFlightIdRef.current;
       audioRef.current?.pause();
 
       const streamResp = await askLLMVoice(
-        T,
+        replyText,
         post
           ? {
               postId: post.id as unknown as string | number,
