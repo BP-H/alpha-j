@@ -54,6 +54,12 @@ export async function askLLM(
   input: string,
   ctx?: AssistantCtx,
 ): Promise<AskResult> {
+  const apiKey = getKey("openai");
+  if (!apiKey) {
+    warnOnce("Missing OpenAI API key");
+    return { ok: false, error: "missing api key" };
+  }
+
   // Optional model picked in UI and saved to localStorage
   let model: string | undefined;
   if (typeof window !== "undefined") {
@@ -73,17 +79,39 @@ export async function askLLM(
     }
   }
 
-  const payload: AskPayload = { prompt: input };
-  if (ctx) payload.ctx = ctx;
-  if (model) payload.model = model;
+  const messages: Array<{ role: "system" | "user"; content: string }> = [
+    {
+      role: "system",
+      content:
+        "You are the SuperNOVA assistant orb. Reply in one or two concise sentences. No markdown.",
+    },
+  ];
+  if (ctx?.postId || ctx?.title || ctx?.text) {
+    const parts: string[] = [];
+    if (ctx.postId) parts.push(`ID ${ctx.postId}`);
+    if (ctx.title) parts.push(`title "${ctx.title}"`);
+    if (ctx.text) parts.push(`content: ${ctx.text}`);
+    messages.push({
+      role: "system",
+      content: `Context from hovered post — ${parts.join(" — ")}`,
+    });
+  }
+  messages.push({ role: "user", content: input.slice(0, 2000) });
 
   const ac = new AbortController();
   const timeout = setTimeout(() => ac.abort(), 15_000);
   try {
-    const res = await fetch("/api/assistant-reply", {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
+      headers: {
+        "content-type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: model || "gpt-4o-mini",
+        temperature: 0.3,
+        messages,
+      }),
       signal: ac.signal,
     });
     clearTimeout(timeout);
@@ -98,12 +126,13 @@ export async function askLLM(
     }
 
     const data = await res.json();
+    const text = (data?.choices?.[0]?.message?.content || "").trim() || "ok";
     const message: AssistantMessage = {
       id:
         globalThis.crypto?.randomUUID?.() ??
         Math.random().toString(36).slice(2),
       role: "assistant",
-      text: data.text || "ok",
+      text,
       ts: Date.now(),
       postId: ctx?.postId ?? null,
     };
@@ -129,20 +158,24 @@ export async function askLLMVoice(
     return { ok: false, error: "missing api key" };
   }
 
-  const payload: { apiKey: string; prompt: string; ctx?: AssistantCtx } = {
-    apiKey,
-    prompt,
+  const payload = {
+    model: "gpt-4o-mini-tts",
+    voice: "alloy",
+    input: prompt,
   };
-  if (ctx) payload.ctx = ctx;
 
   const retries = 2;
   for (let attempt = 0; attempt <= retries; attempt++) {
     const ac = new AbortController();
     const timeout = setTimeout(() => ac.abort(), 15_000);
     try {
-      const res = await fetch("/api/assistant-voice", {
+      const res = await fetch("https://api.openai.com/v1/audio/speech", {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: {
+          "content-type": "application/json",
+          Accept: "audio/mpeg",
+          Authorization: `Bearer ${apiKey}`,
+        },
         body: JSON.stringify(payload),
         signal: ac.signal,
       });

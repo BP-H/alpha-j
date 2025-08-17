@@ -8,6 +8,9 @@ describe("fetchImages", () => {
     vi.restoreAllMocks();
     delete process.env.VITE_UNSPLASH_KEY;
     delete process.env.VITE_PEXELS_KEY;
+    try {
+      window.localStorage.clear();
+    } catch {}
   });
 
   it("uses VITE_UNSPLASH_KEY before secureStore", async () => {

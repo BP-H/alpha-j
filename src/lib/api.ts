@@ -11,11 +11,6 @@ function warnOnce(msg: string) {
   bus.emit("notify", msg);
 }
 
-interface AssistantReplyPayload {
-  prompt: string;
-  apiKey?: string;
-}
-
 export type AssistantReplyResult =
   | { ok: true; text: string }
   | { ok: false; error: string };
@@ -36,42 +31,41 @@ export async function assistantReply(
   prompt: string,
 ): Promise<AssistantReplyResult> {
   const apiKey = getKey("openai");
-  if (!apiKey) warnOnce("Missing OpenAI API key");
-
-  const payload: AssistantReplyPayload = { prompt };
-  if (apiKey) payload.apiKey = apiKey;
+  if (!apiKey) {
+    warnOnce("Missing OpenAI API key");
+    return { ok: false, error: "missing api key" };
+  }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
   try {
-    const res = await fetch("/api/assistant-reply", {
+    const res = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        temperature: 0.3,
+        messages: [
+          {
+            role: "system",
+            content:
+              "You are the SuperNOVA assistant orb. Reply in one or two concise sentences. No markdown.",
+          },
+          { role: "user", content: prompt.slice(0, 2000) },
+        ],
+      }),
       signal: controller.signal,
     });
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      let err = `HTTP ${res.status}`;
-      try {
-        const data = (await res.json()) as { error?: string };
-        if (typeof data.error === "string") err = data.error;
-      } catch {
-        try {
-          const text = await res.text();
-          if (text) err = text;
-        } catch {
-          // ignore
-        }
-      }
+      const err = data?.error?.message || `HTTP ${res.status}`;
       return { ok: false, error: err };
     }
-    const data = (await res.json()) as AssistantReplyResult;
-    if (data.ok && typeof (data as any).text === "string") {
-      return { ok: true, text: (data as any).text };
-    }
-    const error =
-      typeof (data as any).error === "string" ? (data as any).error : "Failed";
-    return { ok: false, error };
+    const text = (data?.choices?.[0]?.message?.content || "").trim();
+    return { ok: true, text };
   } catch (e: unknown) {
     const error = e instanceof Error ? e.message : "Network error";
     return { ok: false, error };
