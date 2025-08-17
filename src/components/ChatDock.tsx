@@ -1,6 +1,12 @@
 // src/components/ChatDock.tsx
-import React, { createContext, useContext, useState, ReactNode } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  ReactNode,
+} from "react";
 import type { AssistantMessage } from "../types";
+import "./ChatDock.css";
 
 type ChatDockContextValue = {
   open: boolean;
@@ -53,6 +59,7 @@ export default function ChatDock({
   const ctx = useContext(ChatDockContext);
   const open = openProp ?? ctx?.open ?? false;
   const messages = messagesProp ?? ctx?.messages ?? [];
+  const [minimized, setMinimized] = useState(false);
 
   const handleClose = () => {
     ctx?.closeDock?.();
@@ -61,46 +68,41 @@ export default function ChatDock({
 
   if (!open) return null;
 
-  return (
-    <div
-      className="chat-dock"
-      style={{
-        position: "fixed",
-        top: "50%",
-        left: "50%",
-        transform: "translate(-50%, -50%)",
-        width: "90vw",
-        height: "70vh",
-        maxWidth: "480px",
-        maxHeight: "600px",
-        background: "#fff",
-        color: "#000",
-        display: "flex",
-        flexDirection: "column",
-        border: "1px solid #ccc",
-        borderRadius: "8px",
-        zIndex: 1000,
-      }}
-    >
-      <div style={{ padding: "8px", borderBottom: "1px solid #ddd" }}>
-        <button
-          aria-label="Close chat"
-          onClick={handleClose}
-          style={{ float: "right", border: "none", background: "none" }}
-        >
-          ×
-        </button>
-        <strong>Chat</strong>
-      </div>
-      <div
-        style={{
-          flex: 1,
-          overflow: "auto",
-          padding: "8px",
-        }}
+  if (minimized)
+    return (
+      <button
+        className="chat-dock-icon"
+        aria-label="Open chat"
+        onClick={() => setMinimized(false)}
       >
+        💬
+      </button>
+    );
+
+  return (
+    <div className="chat-dock">
+      <div className="chat-dock-header">
+        <strong>Chat</strong>
+        <div>
+          <button
+            aria-label="Minimize chat"
+            className="chat-dock-minimize"
+            onClick={() => setMinimized(true)}
+          >
+            _
+          </button>
+          <button
+            aria-label="Close chat"
+            className="chat-dock-close"
+            onClick={handleClose}
+          >
+            ×
+          </button>
+        </div>
+      </div>
+      <div className="chat-dock-messages">
         {messages.map((m) => (
-          <div key={m.id} style={{ marginBottom: "4px" }}>
+          <div key={m.id} className="chat-dock-message">
             <b>{m.role === "assistant" ? "Assistant" : "You"}:</b> {m.text}
           </div>
         ))}
