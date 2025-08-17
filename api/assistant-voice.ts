@@ -1,6 +1,5 @@
 // /api/assistant-voice.ts
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { Readable } from "node:stream";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {
@@ -11,9 +10,17 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     apiKey?: string;
     prompt?: string;
     q?: string;
-    model?: string;  // e.g. "gpt-4o-mini-tts"
-    voice?: string;  // e.g. "alloy", "verse", "aria"
-    speed?: number;  // optional: 0.25 - 4
+    model?: string; // e.g. "gpt-4o-mini-tts"
+    voice?: string; // e.g. "alloy", "verse", "aria"
+    speed?: number; // optional: 0.25 - 4
+    ctx?: {
+      postId?: string | number;
+      title?: string;
+      text?: string;
+      selection?: string;
+      images?: string[];
+      post?: { id?: string | number; title?: string; text?: string };
+    };
   };
 
   const headerKey =
@@ -50,30 +57,68 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const speed =
     typeof body.speed === "number" && Number.isFinite(body.speed) ? body.speed : undefined;
 
-  // Give TTS enough time to respond (Vercel Node functions allow longer than Edge)
+  const ctx = body.ctx || {};
+  const ctxPostId = ctx.postId ?? ctx.post?.id;
+  const ctxTitle = ctx.title ?? ctx.post?.title;
+  const ctxTextRaw = ctx.text ?? ctx.post?.text;
+  const ctxText = typeof ctxTextRaw === "string" ? ctxTextRaw.slice(0, 1000) : "";
+  const ctxSelection =
+    typeof ctx.selection === "string" ? ctx.selection.slice(0, 1000) : "";
+  const ctxImages = Array.isArray(ctx.images)
+    ? ctx.images.filter((u): u is string => typeof u === "string").slice(0, 5)
+    : [];
+
+  const messages: Array<{ role: "system" | "user"; content: string }> = [
+    {
+      role: "system",
+      content:
+        "You are the SuperNOVA assistant orb. Reply in one or two concise sentences. No markdown.",
+    },
+  ];
+
+  if (ctxPostId || ctxTitle || ctxText) {
+    const parts: string[] = [];
+    if (ctxPostId) parts.push(`ID ${ctxPostId}`);
+    if (ctxTitle) parts.push(`title \"${ctxTitle}\"`);
+    if (ctxText) parts.push(`content: ${ctxText}`);
+    messages.push({
+      role: "system",
+      content: `Context from hovered post — ${parts.join(" — ")}`,
+    });
+  }
+
+  if (ctxSelection) {
+    messages.push({ role: "system", content: `User selected text: ${ctxSelection}` });
+  }
+
+  if (ctxImages.length) {
+    messages.push({ role: "system", content: `Image URLs: ${ctxImages.join(", ")}` });
+  }
+
+  messages.push({ role: "user", content: prompt });
+
+  // Give time for the Responses API to stream audio back
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), 45_000);
 
   try {
-    // This endpoint returns **binary audio** (not SSE), perfect for piping.
-    const r = await fetch("https://api.openai.com/v1/audio/speech", {
+    const r = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
-        // Ask for mp3 back:
-        Accept: "audio/mpeg",
       },
       body: JSON.stringify({
         model,
-        voice,
-        input: prompt,
-        ...(speed ? { speed } : {}),
+        modalities: ["audio"],
+        audio: { voice, format: "mp3", ...(speed ? { speed } : {}) },
+        input: messages,
+        stream: true,
       }),
       signal: ctrl.signal,
     });
 
-    if (!r.ok) {
+    if (!r.ok || !r.body) {
       const errText = await r.text().catch(() => "");
       res.status(r.status);
       res.setHeader(
@@ -83,15 +128,44 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       return res.send(errText || JSON.stringify({ ok: false, error: "Failed" }));
     }
 
-    // Stream the audio through to the client
     res.status(200);
     res.setHeader("Content-Type", "audio/mpeg");
     res.setHeader("Cache-Control", "no-store");
-    if (r.body) {
-      Readable.fromWeb(r.body as any).pipe(res);
-    } else {
-      res.end();
+
+    const reader = (r.body as ReadableStream<Uint8Array>).getReader();
+    const textDecoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += textDecoder.decode(value, { stream: true });
+
+      let idx;
+      while ((idx = buffer.indexOf("\n")) >= 0) {
+        const line = buffer.slice(0, idx).trim();
+        buffer = buffer.slice(idx + 1);
+        if (!line) continue;
+        if (line.startsWith("data:")) {
+          const data = line.slice(5).trim();
+          if (data === "[DONE]") {
+            reader.cancel();
+            break;
+          }
+          try {
+            const j = JSON.parse(data);
+            if (j.type === "response.output_audio.delta" && j.delta) {
+              const chunk = Buffer.from(j.delta, "base64");
+              if (chunk.length) res.write(chunk);
+            } else if (j.type === "response.completed") {
+              reader.cancel();
+              break;
+            }
+          } catch {}
+        }
+      }
     }
+    res.end();
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Network error";
     return res.status(500).json({ ok: false, error: message });
