@@ -29,14 +29,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       : "";
 
   const apiKey =
-    (headerKey || (typeof body.apiKey === "string" ? body.apiKey.trim() : "")) ||
-    (process.env.OPENAI_API_KEY || "");
+    headerKey || (typeof body.apiKey === "string" ? body.apiKey.trim() : "");
 
   if (!apiKey) {
     return res.status(401).json({
       ok: false,
-      error:
-        "Unauthorized: missing OpenAI API key. Provide one in the request or set OPENAI_API_KEY on the server.",
+      error: "Unauthorized: missing OpenAI API key.",
     });
   }
 
