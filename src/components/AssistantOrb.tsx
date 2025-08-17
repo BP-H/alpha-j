@@ -271,7 +271,7 @@ export default function AssistantOrb() {
         : null
     );
     let replyText: string | null = null;
-    if (resp.ok && resp.message) {
+    if (resp.ok) {
       push(resp.message);
       replyText = resp.message.text;
     } else {
