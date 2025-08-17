@@ -80,6 +80,15 @@
   max-height: 80vh;
 }
 
+.pc-link{
+  display:block;
+  margin:6px 0;
+  color:var(--pc-muted);
+  text-decoration:underline;
+  overflow-wrap:anywhere;
+  word-break:break-all;
+}
+
 /* carousel (for multiple images) */
 .pc-carousel{
   display:grid; grid-auto-flow:column; grid-auto-columns:100%;
