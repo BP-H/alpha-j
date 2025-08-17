@@ -174,11 +174,10 @@
 }
 
 .pc-reactions{
-  margin-top:8px;
   display:flex;
-  gap:6px;
   flex-wrap:nowrap;
-  color: var(--pc-ink);
+  gap:6px;
+  margin-top:8px;
   overflow-x:auto;
   overflow-y:auto;
   max-height:120px;
