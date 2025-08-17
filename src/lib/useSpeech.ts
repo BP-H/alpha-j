@@ -24,6 +24,9 @@ export default function useSpeech({
 }: SpeechOptions) {
   const recRef = useRef<any>(null);
   const activeRef = useRef(false);
+  const stoppingRef = useRef(false);
+  const startTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [error, setError] = useState<string>("");
 
   const supported =
@@ -54,18 +57,32 @@ export default function useSpeech({
     rec.onend = () => {
       onEnd?.();
       // Safari ends even with continuous=true; restart if still active
-      if (activeRef.current) {
+      if (!stoppingRef.current && activeRef.current) {
         try {
           rec.start();
         } catch (err) {
           logError(err);
         }
       }
+      stoppingRef.current = false;
     };
 
-    rec.onerror = (e: unknown) => {
+    rec.onerror = (e: any) => {
       logError(e);
-      setError("Speech recognition failed");
+      let msg = "Speech recognition failed";
+      switch (e?.error) {
+        case "not-allowed":
+        case "service-not-allowed":
+          msg = "Microphone permission denied";
+          break;
+        case "audio-capture":
+          msg = "Microphone not available";
+          break;
+        case "network":
+          msg = "Network error during speech recognition";
+          break;
+      }
+      setError(msg);
       onError?.(e);
     };
 
@@ -102,22 +119,45 @@ export default function useSpeech({
     };
   }, [onResult, onInterim, onStart, onEnd, onError, supported]);
 
+  useEffect(() => {
+    return () => {
+      if (startTimerRef.current) clearTimeout(startTimerRef.current);
+      if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+    };
+  }, []);
+
   const start = useCallback(() => {
-    activeRef.current = true;
-    try {
-      recRef.current && recRef.current.start();
-    } catch (err) {
-      logError(err);
+    if (startTimerRef.current) clearTimeout(startTimerRef.current);
+    if (stopTimerRef.current) {
+      clearTimeout(stopTimerRef.current);
+      stopTimerRef.current = null;
+      stoppingRef.current = false;
     }
+    startTimerRef.current = setTimeout(() => {
+      activeRef.current = true;
+      try {
+        recRef.current && recRef.current.start();
+      } catch (err) {
+        logError(err);
+      }
+    }, 200);
   }, []);
 
   const stop = useCallback(() => {
-    activeRef.current = false;
-    try {
-      recRef.current && recRef.current.stop();
-    } catch (err) {
-      logError(err);
+    if (stopTimerRef.current) clearTimeout(stopTimerRef.current);
+    if (startTimerRef.current) {
+      clearTimeout(startTimerRef.current);
+      startTimerRef.current = null;
     }
+    stoppingRef.current = true;
+    stopTimerRef.current = setTimeout(() => {
+      activeRef.current = false;
+      try {
+        recRef.current && recRef.current.stop();
+      } catch (err) {
+        logError(err);
+      }
+    }, 200);
   }, []);
 
   return { start, stop, supported: !!supported, error };
