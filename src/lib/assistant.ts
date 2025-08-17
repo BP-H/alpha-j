@@ -146,7 +146,21 @@ export async function askLLMVoice(
     apiKey,
     prompt: command,
   };
-  if (ctx) payload.ctx = ctx;
+  if (ctx) {
+    const images = Array.isArray(ctx.images)
+      ? ctx.images
+          .map((img: any) =>
+            typeof img === "string"
+              ? img
+              : img && typeof img.url === "string"
+                ? img.url
+                : undefined,
+          )
+          .filter((u): u is string => typeof u === "string")
+          .slice(0, 5)
+      : undefined;
+    payload.ctx = { ...ctx, ...(images ? { images } : {}) };
+  }
 
   const ac = new AbortController();
   const timeout = setTimeout(() => ac.abort(), 15_000);
