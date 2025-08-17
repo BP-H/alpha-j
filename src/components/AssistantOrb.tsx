@@ -148,7 +148,6 @@ export default function AssistantOrb() {
   // DOM refs
   const orbRef = useRef<HTMLButtonElement | null>(null);
   const toastRef = useRef<HTMLDivElement | null>(null);
-  const interimRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const msgListRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -202,10 +201,13 @@ export default function AssistantOrb() {
     onResult: async (txt: string) => {
       await handleCommand(txt);
     },
-    onInterim: (txt: string) => setInterim(txt),
+    onInterim: (txt: string) => {
+      setInterim(txt);
+      setToast(txt);
+    },
     onStart: () => {
       setMic(true);
-      setToast("Listening…");
+      setToast("");
     },
     onEnd: () => {
       setInterim("");
@@ -414,14 +416,6 @@ export default function AssistantOrb() {
       s.transform = placeRightToast ? "translateY(-50%)" : "translate(-100%, -50%)";
     }
 
-    if (interimRef.current) {
-      const s = interimRef.current.style;
-      s.position = "fixed";
-      s.top = `${Math.max(ORB_MARGIN, y - 30)}px`;
-      s.left = placeRightToast ? `${x + ORB_SIZE + 8}px` : `${x - 8}px`;
-      s.transform = placeRightToast ? "none" : "translateX(-100%)";
-    }
-
     if (panelEl && open) {
       const s = panelEl.style;
       const panelH = panelEl.offsetHeight || 260;
@@ -583,7 +577,7 @@ export default function AssistantOrb() {
 
   // lifecycle
   useEffect(() => { applyTransform(pos.x, pos.y); posRef.current = { ...pos }; updateAnchors(); }, []);
-  useEffect(() => { updateAnchors(); }, [toast, interim, menuOpen, dragging]);
+  useEffect(() => { updateAnchors(); }, [toast, menuOpen, dragging]);
   useEffect(() => { requestAnimationFrame(updateAnchors); }, [open]);
   useEffect(() => { if (msgListRef.current) msgListRef.current.scrollTop = msgListRef.current.scrollHeight; }, [msgs]);
 
@@ -702,6 +696,11 @@ export default function AssistantOrb() {
     fontSize: isSmall ? 11 : 13,
     zIndex: 9998,
     pointerEvents: "none",
+  };
+  const interimToastStyle: React.CSSProperties = {
+    ...toastBoxStyle,
+    background: "rgba(255,255,255,.06)",
+    border: "1px solid rgba(255,255,255,.12)",
   };
   const panelStyle: React.CSSProperties = {
     position: "fixed",
@@ -864,8 +863,15 @@ export default function AssistantOrb() {
       )}
 
       {/* toast + interim */}
-      {toast && <div ref={toastRef} style={toastBoxStyle} aria-live="polite">{toast}</div>}
-      {interim && <div ref={interimRef} style={toastBoxStyle} aria-live="polite">…{interim}</div>}
+      {toast && (
+        <div
+          ref={toastRef}
+          style={mic ? interimToastStyle : toastBoxStyle}
+          aria-live="polite"
+        >
+          {mic ? `…${toast}` : toast}
+        </div>
+      )}
 
       {/* Chat panel */}
       {open && (
