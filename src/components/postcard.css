@@ -114,7 +114,17 @@
 .pc-emoji-bar::-webkit-scrollbar{ display:none; }
 .pc-emoji{ height:var(--pc-emoji-size); min-width:var(--pc-emoji-size); padding:0 6px; border-radius:999px; display:grid; place-items:center; font-size:18px; cursor:pointer; background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); max-width:100%; box-sizing:border-box; }
 .pc-section{ margin-top:12px; }
-.pc-reactions{ display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.pc-reactions{
+  display:flex;
+  flex-wrap:nowrap;
+  gap:6px;
+  margin-top:8px;
+  overflow-x:auto;
+  max-width:100%;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:none;
+}
+.pc-reactions::-webkit-scrollbar{ display:none; }
 .pc-re{ font-size:18px; }
 .pc-comments{ list-style:none; margin:8px 0 0; padding:0; display:grid; gap:6px; }
 .pc-comments li{ background: rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.12); padding:8px 10px; border-radius:10px; opacity:.95; }
