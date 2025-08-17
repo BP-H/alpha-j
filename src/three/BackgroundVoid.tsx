@@ -35,13 +35,27 @@ export default function BackgroundVoid() {
     });
   }, []);
 
-  const bg = w.theme === "dark" ? "#0b0d12" : "#f6f8fb";
-  const fogC = w.theme === "dark" ? "#0b0d12" : "#f1f4fa";
-  const gridC = w.theme === "dark" ? "#283044" : "#e5eaf4";
+  const bg = "#f6f8fb";
+  const fogC = "#f1f4fa";
+  const gridC = "#e5eaf4";
   const fogNear = 12 + w.fogLevel * 6;
   const fogFar = 44 - w.fogLevel * 16;
 
   const positions = useMemo(() => ringPositions(w.orbCount), [w.orbCount]);
+  const orbColors = useMemo(
+    () => [
+      "#f87171",
+      "#fb923c",
+      "#fbbf24",
+      "#a3e635",
+      "#4ade80",
+      "#2dd4bf",
+      "#38bdf8",
+      "#818cf8",
+      "#e879f9",
+    ],
+    []
+  );
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 0, pointerEvents: "none" }}>
@@ -55,8 +69,9 @@ export default function BackgroundVoid() {
           <Instances limit={64}>
             <sphereGeometry args={[0.26, 32, 32]} />
             <meshStandardMaterial
+              vertexColors
               color={w.orbColor}
-              emissive={w.theme === "dark" ? "#6b72ff" : "#b6bcff"}
+              emissive="#b6bcff"
               emissiveIntensity={0.16}
               roughness={0.25}
               metalness={0.55}
@@ -68,7 +83,7 @@ export default function BackgroundVoid() {
                 rotationIntensity={0.25}
                 speed={0.9 + (i % 4) * 0.15}
               >
-                <Instance position={p} />
+                <Instance position={p} color={orbColors[i % orbColors.length]} />
               </Float>
             ))}
           </Instances>
