@@ -25,7 +25,7 @@ export default function MenuOrb() {
       </div>
       <style>{`
         .menu-orb{
-          position:fixed;left:16px;top:16px;z-index:60;
+          position:fixed;left:16px;top:16px;z-index:80;
           width:64px;height:64px;cursor:pointer;
         }
         .menu-orb .orb-core{
