@@ -1,3 +1,5 @@
+import { getKey as getStoredKey } from "./secureStore";
+
 export type FeedImage = {
   id: string;
   src: string;         // display src (optimized for width ~1200)
@@ -18,8 +20,8 @@ type FetchArgs = {
 };
 
 /**
- * Read API keys from Vite env first, then fall back to localStorage
- * (so you don’t need env vars to test)
+ * Read API keys from Vite env first, then fall back to the in-memory
+ * secure store (so you don’t need env vars to test)
  */
 function getKey(name: string) {
   const envMap: Record<string, string | undefined> = {
@@ -28,10 +30,8 @@ function getKey(name: string) {
   };
   const envKey = envMap[name];
   if (envKey) return envKey;
-  if (typeof window !== "undefined" && window.localStorage) {
-    try { return JSON.parse(window.localStorage.getItem("sn.keys") || "{}")[name]; } catch { return undefined; }
-  }
-  return undefined;
+  const k = getStoredKey(name);
+  return k || undefined;
 }
 
 const warnedProviders = new Set<string>();
@@ -68,7 +68,7 @@ async function fetchPicsum(page: number, perPage: number): Promise<FeedImage[]> 
   });
 }
 
-/** UNSPLASH (optional) — needs access key (store as localStorage.sn.keys.unsplash) */
+/** UNSPLASH (optional) — needs access key (use secureStore key "unsplash") */
 async function fetchUnsplash(page: number, perPage: number, query?: string): Promise<FeedImage[]> {
   const key = getKey("unsplash");
   if (!key) {
@@ -101,7 +101,7 @@ async function fetchUnsplash(page: number, perPage: number, query?: string): Pro
   } as FeedImage));
 }
 
-/** PEXELS (optional) — needs key (store as localStorage.sn.keys.pexels) */
+/** PEXELS (optional) — needs key (use secureStore key "pexels") */
 async function fetchPexels(page: number, perPage: number, query?: string): Promise<FeedImage[]> {
   const key = getKey("pexels");
   if (!key) {

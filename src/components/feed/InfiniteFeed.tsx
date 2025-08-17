@@ -9,7 +9,7 @@ import SkeletonCard from "./SkeletonCard";
 /**
  * InfiniteFeed
  * - True infinite scroll via IntersectionObserver
- * - Default provider: Picsum (no key). If you add localStorage.sn.keys.unsplash or .pexels, set provider prop.
+ * - Default provider: Picsum (no key). If you add secure-store keys for Unsplash or Pexels, set provider prop.
  * - Compatible with your Orb: each card has data-post-id and .pc-media img for tint.
  */
 export default function InfiniteFeed({
