@@ -82,10 +82,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   messages.push({ role: "user", content: prompt });
 
-  try {
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10_000);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 10_000);
 
+  try {
     const r = await fetch("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -95,8 +95,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body: JSON.stringify({ model, temperature: 0.3, messages }),
       signal: ctrl.signal,
     });
-
-    clearTimeout(timer);
 
     const j = await r.json();
     if (!r.ok) {
@@ -110,5 +108,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   } catch (e: unknown) {
     const message = e instanceof Error ? e.message : "Network error";
     return res.status(500).json({ ok: false, error: message });
+  } finally {
+    clearTimeout(timer);
   }
 }
