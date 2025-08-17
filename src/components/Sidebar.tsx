@@ -130,9 +130,12 @@ export default function Sidebar() {
   const keyFields = [
     {
       id: "openai",
-      label: "OpenAI",
+      label: "OpenAI (voice & text assistants)",
       value: openaiDraft,
-      onChange: setOpenaiDraft,
+      onChange: (v: string) => {
+        setOpenaiDraft(v);
+        setOpenaiKey(v);
+      },
       onSave: () => setOpenaiKey(openaiDraft),
       onRemove: () => {
         setOpenaiDraft("");

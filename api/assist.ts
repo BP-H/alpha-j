@@ -23,7 +23,7 @@ export default async function handler(req: Request): Promise<Response> {
   const bodyKey: string | undefined = typeof body?.apiKey === 'string' ? body.apiKey : undefined;
   const authHeader = req.headers.get('authorization') || '';
   const headerKey = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : undefined;
-  const apiKey = bodyKey || headerKey || process.env.OPENAI_API_KEY;
+  const apiKey = bodyKey || headerKey;
 
   if (!text) {
     return new Response(JSON.stringify({ error: 'Missing text' }), {
