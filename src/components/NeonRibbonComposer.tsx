@@ -90,7 +90,7 @@ export default function NeonRibbonComposer() {
           <span aria-hidden="true" className="neon-ribbon__line" />
         </div>
       )}
-      {open && <PostComposer />}
+      {open && <PostComposer onClose={closeComposer} />}
     </div>
   );
 }
