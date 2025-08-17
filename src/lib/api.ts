@@ -3,11 +3,28 @@ import { getKey } from "./secureStore";
 import bus from "./bus";
 
 let warned = false;
-function warnOnce(msg: string) {
+export function warnOnce(msg: string) {
   if (warned) return;
   warned = true;
   console.warn(msg);
-  bus.emit("notify", msg);
+  bus.emit("toast", { message: msg });
+}
+
+export async function parseError(res: Response): Promise<string> {
+  try {
+    const data = await res.json();
+    return (
+      (data && (data.error || data.message)) ||
+      (typeof data === "string" ? data : JSON.stringify(data)) ||
+      "request failed"
+    );
+  } catch {
+    try {
+      return (await res.text()) || "request failed";
+    } catch {
+      return "request failed";
+    }
+  }
 }
 
 interface AssistantReplyPayload {
