@@ -322,7 +322,7 @@ export default function AssistantOrb() {
         try {
           const el = audioRef.current;
           if (el) {
-            const blob = new Blob([voiceResp.audio], { type: voiceResp.type });
+            const blob = new Blob([voiceResp.audio.buffer as ArrayBuffer], { type: voiceResp.type });
             const url = URL.createObjectURL(blob);
             if (audioUrlRef.current) URL.revokeObjectURL(audioUrlRef.current);
             if (id !== inFlightIdRef.current) {
