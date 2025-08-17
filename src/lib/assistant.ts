@@ -7,6 +7,8 @@ type AssistantCtx = {
   postId?: string | number;
   title?: string;
   text?: string;
+  selection?: string;
+  images?: string[];
 } | null;
 
 export type AskPayload = {

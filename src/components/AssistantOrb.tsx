@@ -274,6 +274,19 @@ export default function AssistantOrb() {
 
   async function handleCommand(text: string) {
     const post = ctxPost || null;
+    // capture current selection and any images on the post before building ctx
+    const selection =
+      (typeof window !== "undefined"
+        ? window.getSelection()?.toString()
+        : "")?.trim() || "";
+    const images = post
+      ? Array.isArray(post.images)
+        ? [...post.images]
+        : post.image
+          ? [post.image]
+          : []
+      : [];
+
     push({ id: uuid(), role: "user", text, ts: Date.now(), postId: post?.id ?? null });
 
     const T = text.trim();
@@ -314,17 +327,23 @@ export default function AssistantOrb() {
       return;
     }
 
-    // Ask the model with optional post context (id, title, and visible text)
-    const resp = await askLLM(
-      T,
-      post
+    // Ask the model with optional post context (id, title, visible text, selection, images)
+    const ctx =
+      post || selection || images.length
         ? {
-            postId: post.id as unknown as string | number,
-            title: (post as any)?.title,
-            text: ctxPostText || getPostText(post),
+            ...(post
+              ? {
+                  postId: post.id as unknown as string | number,
+                  title: (post as any)?.title,
+                  text: ctxPostText || getPostText(post),
+                }
+              : {}),
+            ...(selection ? { selection } : {}),
+            ...(images.length ? { images } : {}),
           }
-        : null
-    );
+        : null;
+
+    const resp = await askLLM(T, ctx);
     let replyText: string | null = null;
     if (resp.ok && resp.message) {
       push(resp.message);
@@ -344,16 +363,7 @@ export default function AssistantOrb() {
       const id = ++inFlightIdRef.current;
       audioRef.current?.pause();
 
-      const streamResp = await askLLMVoice(
-        replyText,
-        post
-          ? {
-              postId: post.id as unknown as string | number,
-              title: (post as any)?.title,
-              text: ctxPostText || getPostText(post),
-            }
-          : null
-      );
+      const streamResp = await askLLMVoice(replyText, ctx);
       if (id !== inFlightIdRef.current) return;
       if (streamResp.ok) {
         try {
