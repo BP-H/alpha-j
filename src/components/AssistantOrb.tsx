@@ -288,12 +288,11 @@ export default function AssistantOrb() {
           }
         : null;
 
+    const voicePromise = voiceOn ? askLLMVoice(T, ctx) : null;
     const resp = await askLLM(T, ctx);
-    let replyText: string | null = null;
     if (resp.ok) {
       if (resp.message) {
         push(resp.message);
-        replyText = resp.message.text;
       }
     } else {
       const err = resp.error ?? "Unknown error";
@@ -307,11 +306,11 @@ export default function AssistantOrb() {
       });
     }
 
-    if (voiceOn && replyText) {
+    if (voicePromise) {
       const id = ++inFlightIdRef.current;
       audioRef.current?.pause();
 
-      const streamResp = await askLLMVoice(replyText, ctx);
+      const streamResp = await voicePromise;
       if (id !== inFlightIdRef.current) return;
       if (streamResp.ok) {
         try {
