@@ -209,13 +209,157 @@ export async function askLLMVoice(
     return { ok: false, error: { type: "openai", message: "missing api key" } };
   }
 
-  const payload: { prompt: string; ctx?: AssistantCtx } = {
-    prompt: command,
+  const prompt = (command || "").trim().slice(0, 4000);
+  const model = "gpt-4o-mini-tts";
+  const voice = "alloy";
+
+  const ctxPostId = ctx?.postId;
+  const ctxTitle = ctx?.title;
+  const ctxText = typeof ctx?.text === "string" ? ctx.text.slice(0, 1000) : "";
+  const ctxSelection =
+    typeof ctx?.selection === "string" ? ctx.selection.slice(0, 1000) : "";
+  const ctxImages = Array.isArray(ctx?.images)
+    ? ctx.images
+        .filter((u): u is string => typeof u === "string")
+        .filter(
+          (u) =>
+            /^https?:\/\//i.test(u) ||
+            /^data:image\/[a-zA-Z]+;base64,/i.test(u),
+        )
+        .slice(0, 5)
+    : [];
+
+  const input: Array<{
+    role: "system" | "user";
+    content: Array<
+      | { type: "input_text"; text: string }
+      | { type: "input_image"; image_url: string }
+    >;
+  }> = [
+    {
+      role: "system",
+      content: [
+        {
+          type: "input_text",
+          text: "You are the SuperNOVA assistant orb. Reply in one or two concise sentences. No markdown.",
+        },
+      ],
+    },
+  ];
+
+  if (ctxPostId || ctxTitle || ctxText) {
+    const parts: string[] = [];
+    if (ctxPostId) parts.push(`ID ${ctxPostId}`);
+    if (ctxTitle) parts.push(`title \"${ctxTitle}\"`);
+    if (ctxText) parts.push(`content: ${ctxText}`);
+    input.push({
+      role: "system",
+      content: [
+        {
+          type: "input_text",
+          text: `Context from hovered post — ${parts.join(" — ")}`,
+        },
+      ],
+    });
+  }
+
+  if (ctxSelection) {
+    input.push({
+      role: "user",
+      content: [
+        { type: "input_text", text: `User selected text: ${ctxSelection}` },
+      ],
+    });
+  }
+
+  input.push({
+    role: "user",
+    content: [{ type: "input_text", text: prompt }],
+  });
+
+  if (ctxImages.length) {
+    input.push({
+      role: "user",
+      content: ctxImages.map((url) => ({ type: "input_image", image_url: url })),
+    });
+  }
+
+  const body = {
+    model,
+    modalities: ["text", "audio"],
+    input,
+    audio: { voice, format: "mp3" },
+    temperature: 0.3,
   };
+
+  // Try calling the OpenAI API directly
+  const ac = new AbortController();
+  const timeout = setTimeout(() => ac.abort(), 45_000);
+  try {
+    const r = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+      signal: ac.signal,
+    });
+    clearTimeout(timeout);
+
+    const data = await r.json();
+    if (r.ok) {
+      const output = data?.output || [];
+      let text = "";
+      let audioB64 = "";
+      for (const part of output) {
+        if (Array.isArray(part?.content)) {
+          for (const c of part.content) {
+            if (c.type === "text" && typeof c.text === "string") {
+              text += c.text;
+            } else if (c.type === "audio" && c.audio?.data) {
+              audioB64 = c.audio.data;
+            }
+          }
+        }
+      }
+      if (audioB64) {
+        const bytes = Uint8Array.from(atob(audioB64), (c) => c.charCodeAt(0));
+        const arrayBuffer = bytes.buffer as ArrayBuffer;
+        const blob = new Blob([arrayBuffer], { type: "audio/mpeg" });
+        const url = URL.createObjectURL(blob);
+        return { ok: true, audio: bytes, url, type: "audio/mpeg", text };
+      }
+      // if audio missing fall through to fallback
+    } else {
+      // non-ok response, fall through to fallback
+      console.error(
+        "assistant voice direct request failed:",
+        data?.error?.message || "request failed",
+      );
+    }
+  } catch (e: any) {
+    clearTimeout(timeout);
+    if (e?.name === "AbortError") {
+      const err: AssistantError = {
+        type: "aborted",
+        message: "request timed out",
+      };
+      const toast = `Assistant voice request failed: ${err.message}`;
+      bus.emit?.("toast", { message: toast });
+      console.error("assistant voice request failed:", err.message);
+      bus.emit?.("notify", toast);
+      return { ok: false, error: err };
+    }
+    console.error("assistant voice direct request failed:", e);
+  }
+
+  // Fallback to server endpoint if direct request fails
+  const payload: { prompt: string; ctx?: AssistantCtx } = { prompt: command };
   if (ctx) payload.ctx = ctx;
 
-  const ac = new AbortController();
-  const timeout = setTimeout(() => ac.abort(), 15_000);
+  const ac2 = new AbortController();
+  const timeout2 = setTimeout(() => ac2.abort(), 15_000);
   try {
     const res = await fetch("/api/assistant-voice", {
       method: "POST",
@@ -224,9 +368,9 @@ export async function askLLMVoice(
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify(payload),
-      signal: ac.signal,
+      signal: ac2.signal,
     });
-    clearTimeout(timeout);
+    clearTimeout(timeout2);
 
     if (!res.ok) {
       const msg = await parseError(res);
@@ -249,13 +393,16 @@ export async function askLLMVoice(
     const url = URL.createObjectURL(blob);
     return { ok: true, audio: bytes, url, type, text: data.text };
   } catch (e: any) {
-    clearTimeout(timeout);
+    clearTimeout(timeout2);
     const rawMsg = e?.message || "request failed";
     let err: AssistantError;
     if (e?.name === "AbortError") {
       err = { type: "aborted", message: "request timed out" };
     } else if (/network/i.test(rawMsg) || /fetch/i.test(rawMsg)) {
-      err = { type: "network", message: "network error, please check your connection" };
+      err = {
+        type: "network",
+        message: "network error, please check your connection",
+      };
     } else {
       err = { type: "unknown", message: rawMsg };
     }
