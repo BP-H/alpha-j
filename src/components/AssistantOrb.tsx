@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import bus from "../lib/bus";
 import { logError } from "../lib/logger";
-import { askLLM } from "../lib/assistant";
+import { askLLM, askLLMVoice } from "../lib/assistant";
 import type { AssistantMessage, Post } from "../types";
 import RadialMenu from "./RadialMenu";
 import { HOLD_MS } from "./orbConstants";
@@ -122,6 +122,8 @@ export default function AssistantOrb() {
   const [dragging, setDragging] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false); // radial
   const [petal, setPetal] = useState<null | "comment" | "remix" | "share">(null);
+  const [voiceOn, setVoiceOn] = useState(true);
+  const [playProgress, setPlayProgress] = useState(0);
   const reduceMotion = useReducedMotion();
 
   // gestures
@@ -140,6 +142,7 @@ export default function AssistantOrb() {
   const interimRef = useRef<HTMLDivElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const msgListRef = useRef<HTMLDivElement | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // feed context
   useEffect(() => {
@@ -271,6 +274,43 @@ export default function AssistantOrb() {
         : null
     );
     push(resp);
+
+    if (voiceOn) {
+      const stream = await askLLMVoice(
+        T,
+        post
+          ? {
+              postId: post.id as unknown as string | number,
+              title: (post as any)?.title,
+              text: ctxPostText || getPostText(post),
+            }
+          : null
+      );
+      if (stream) {
+        try {
+          const blob = await new Response(stream).blob();
+          const url = URL.createObjectURL(blob);
+          const el = audioRef.current;
+          if (el) {
+            el.src = url;
+            setPlayProgress(0);
+            try {
+              await el.play();
+            } catch (err) {
+              logError(err);
+              setToast("Audio playback failed");
+            }
+          }
+        } catch (err) {
+          logError(err);
+          setToast("Voice failed");
+          push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
+        }
+      } else {
+        setToast("Voice failed");
+        push({ id: uuid(), role: "assistant", text: "🔇 Voice unavailable", ts: Date.now(), postId: post?.id ?? null });
+      }
+    }
   }
 
   // ✅ missing function (caused your build error)
@@ -618,6 +658,16 @@ export default function AssistantOrb() {
   return (
     <>
       <style>{keyframes}</style>
+      <audio
+        ref={audioRef}
+        style={{ display: "none" }}
+        onTimeUpdate={e => {
+          const el = e.currentTarget;
+          if (el.duration) setPlayProgress(el.currentTime / el.duration);
+        }}
+        onEnded={() => setPlayProgress(1)}
+        onError={() => setToast("Audio playback failed")}
+      />
 
       <button
         ref={orbRef}
@@ -710,8 +760,22 @@ export default function AssistantOrb() {
             <span style={{ fontSize: 12, fontWeight: 400, opacity: 0.6, paddingLeft: 8, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
               {ctxPost ? `(Context: ${ctxPost.id})` : ""}
             </span>
-            <button onClick={() => setOpen(false)} style={{ marginLeft: "auto", height: 28, padding: "0 10px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.16)" }} aria-label="Close">✕</button>
+            <button
+              onClick={() => setVoiceOn(v => !v)}
+              style={{ marginLeft: "auto", height: 28, padding: "0 10px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.16)" }}
+              aria-label={voiceOn ? "Mute voice" : "Enable voice"}
+              title={voiceOn ? "Mute voice" : "Enable voice"}
+            >
+              {voiceOn ? "🔊" : "🔇"}
+            </button>
+            <button onClick={() => setOpen(false)} style={{ marginLeft: 8, height: 28, padding: "0 10px", borderRadius: 8, cursor: "pointer", background: "rgba(255,255,255,.08)", color: "#fff", border: "1px solid rgba(255,255,255,.16)" }} aria-label="Close">✕</button>
           </div>
+
+          {voiceOn && (
+            <div style={{ height: 4, background: "rgba(255,255,255,.12)", marginBottom: 8 }}>
+              <div style={{ width: `${playProgress * 100}%`, height: "100%", background: "#fff", transition: "width .1s linear" }} />
+            </div>
+          )}
 
           <div ref={msgListRef} style={{ display: "flex", flexDirection: "column", gap: 8, maxHeight: 200, overflowY: "auto", padding: "6px 0" }}>
             {msgs.length === 0 && <div style={{ fontSize: 13, opacity: .75 }}>Hold/drag or double‑click to speak, or use the quick menu.</div>}
